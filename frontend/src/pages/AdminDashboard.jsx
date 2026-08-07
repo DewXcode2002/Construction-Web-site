@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
+import API_URL from '../config';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
@@ -58,25 +59,25 @@ export default function AdminDashboard() {
     const headers = { 'Authorization': `Bearer ${authToken}` };
     
     // Metrics
-    fetch('http://localhost:5000/api/admin/metrics', { headers })
+    fetch(`${API_URL}/api/admin/metrics`, { headers })
       .then(res => res.json())
       .then(data => setMetrics(data))
       .catch(err => console.error(err));
 
     // Employees
-    fetch('http://localhost:5000/api/admin/employees', { headers })
+    fetch(`${API_URL}/api/admin/employees`, { headers })
       .then(res => res.json())
       .then(data => setEmployees(data))
       .catch(err => console.error(err));
 
     // Estimates
-    fetch('http://localhost:5000/api/admin/estimates', { headers })
+    fetch(`${API_URL}/api/admin/estimates`, { headers })
       .then(res => res.json())
       .then(data => setEstimates(data))
       .catch(err => console.error(err));
 
     // Projects
-    fetch('http://localhost:5000/api/admin/projects', { headers })
+    fetch(`${API_URL}/api/admin/projects`, { headers })
       .then(res => res.json())
       .then(data => {
         setProjects(data);
@@ -90,7 +91,7 @@ export default function AdminDashboard() {
       .catch(err => console.error(err));
 
     // Chats user list
-    fetch('http://localhost:5000/api/admin/chats', { headers })
+    fetch(`${API_URL}/api/admin/chats`, { headers })
       .then(res => res.json())
       .then(data => setChats(data))
       .catch(err => console.error(err));
@@ -108,7 +109,7 @@ export default function AdminDashboard() {
   }, [token, selectedChatUser]);
 
   const fetchChatMessages = (targetId) => {
-    fetch(`http://localhost:5000/api/messages/${targetId}`, {
+    fetch(`${API_URL}/api/messages/${targetId}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -127,7 +128,7 @@ export default function AdminDashboard() {
   const handleEmployeeAction = async (empId, action) => {
     const rate = assignedRates[empId] || 1500.0;
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/employees/${empId}/action`, {
+      const res = await fetch(`${API_URL}/api/admin/employees/${empId}/action`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -145,7 +146,7 @@ export default function AdminDashboard() {
 
   const handleEstimateAction = async (estId, action) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/estimates/${estId}/action`, {
+      const res = await fetch(`${API_URL}/api/admin/estimates/${estId}/action`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,7 +177,7 @@ export default function AdminDashboard() {
     if (weeks) formData.append('durationWeeks', weeks);
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/estimates/${estId}/upload-pdf`, {
+      const res = await fetch(`${API_URL}/api/admin/estimates/${estId}/upload-pdf`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -202,7 +203,7 @@ export default function AdminDashboard() {
 
   const handleProgressChange = async (projId, progressPercent, status) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/projects/${projId}/progress`, {
+      const res = await fetch(`${API_URL}/api/admin/projects/${projId}/progress`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -227,7 +228,7 @@ export default function AdminDashboard() {
     setAssignedWorkers(prev => ({ ...prev, [projId]: newList }));
 
     try {
-      await fetch(`http://localhost:5000/api/admin/projects/${projId}/assign`, {
+      await fetch(`${API_URL}/api/admin/projects/${projId}/assign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -248,7 +249,7 @@ export default function AdminDashboard() {
     setMsgInput('');
 
     try {
-      const res = await fetch('http://localhost:5000/api/messages', {
+      const res = await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -263,7 +264,7 @@ export default function AdminDashboard() {
         fetchChatMessages(selectedChatUser.id);
       }
       // Refresh chat list to update last message preview
-      fetch('http://localhost:5000/api/admin/chats', {
+      fetch(`${API_URL}/api/admin/chats`, {
         headers: { 'Authorization': `Bearer ${token}` }
       }).then(r => r.json()).then(d => setChats(d)).catch(() => {});
     } catch (err) {
@@ -457,7 +458,7 @@ export default function AdminDashboard() {
                     {est.plan_file_url && (
                       <div className="text-xs">
                         <span className="text-slate-400 font-bold mr-1.5 uppercase text-[9px]">Client blueprint:</span>
-                        <a href={`http://localhost:5000${est.plan_file_url}`} target="_blank" rel="noreferrer" className="text-amber-500 font-bold hover:underline">
+                        <a href={`${API_URL}${est.plan_file_url}`} target="_blank" rel="noreferrer" className="text-amber-500 font-bold hover:underline">
                           View Customer Plan Drawing
                         </a>
                       </div>
@@ -522,7 +523,7 @@ export default function AdminDashboard() {
                     {est.status === 'budgeted' && (
                       <div className="border-t border-slate-100 pt-4 flex items-center justify-between text-xs text-slate-500">
                         <span>📄 Company Budget PDF uploaded. Sent to Mr/Mrs {est.customer_name}.</span>
-                        <a href={`http://localhost:5000${est.admin_pdf_url}`} target="_blank" rel="noreferrer" className="text-amber-500 font-bold hover:underline">
+                        <a href={`${API_URL}${est.admin_pdf_url}`} target="_blank" rel="noreferrer" className="text-amber-500 font-bold hover:underline">
                           View Uploaded PDF
                         </a>
                       </div>

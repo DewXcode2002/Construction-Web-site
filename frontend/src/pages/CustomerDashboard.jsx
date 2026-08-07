@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, Calculator, Sparkles, Send, MessageSquare, ClipboardList, CheckCircle, UploadCloud, AlertCircle, Phone, Mail } from 'lucide-react';
+import API_URL from '../config';
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
@@ -107,25 +108,25 @@ export default function CustomerDashboard() {
     const headers = { 'Authorization': `Bearer ${authToken}` };
     
     // Fetch estimates
-    fetch('http://localhost:5000/api/customer/estimates', { headers })
+    fetch(`${API_URL}/api/customer/estimates`, { headers })
       .then(res => res.json())
       .then(data => setEstimates(data))
       .catch(err => console.error(err));
 
     // Fetch projects
-    fetch('http://localhost:5000/api/customer/projects', { headers })
+    fetch(`${API_URL}/api/customer/projects`, { headers })
       .then(res => res.json())
       .then(data => setProjects(data))
       .catch(err => console.error(err));
 
     // Fetch plans
-    fetch('http://localhost:5000/api/customer/plans')
+    fetch(`${API_URL}/api/customer/plans`)
       .then(res => res.json())
       .then(data => setPlans(data))
       .catch(err => console.error(err));
 
     // Fetch admin ID dynamically then load messages
-    fetch('http://localhost:5000/api/admin/id', { headers })
+    fetch(`${API_URL}/api/admin/id`, { headers })
       .then(res => res.json())
       .then(data => {
         if (data.adminId) {
@@ -138,7 +139,7 @@ export default function CustomerDashboard() {
 
   const fetchMessages = async (authToken, targetAdminId) => {
     const id = targetAdminId || adminId;
-    fetch(`http://localhost:5000/api/messages/${id}`, {
+    fetch(`${API_URL}/api/messages/${id}`, {
       headers: { 'Authorization': `Bearer ${authToken}` }
     })
       .then(res => res.json())
@@ -152,7 +153,7 @@ export default function CustomerDashboard() {
   useEffect(() => {
     if (!token) return;
     const fetchUnread = () => {
-      fetch('http://localhost:5000/api/messages/unread/count', {
+      fetch(`${API_URL}/api/messages/unread/count`, {
         headers: { 'Authorization': `Bearer ${token}` }
       }).then(r => r.json()).then(d => setUnreadCount(d.count || 0)).catch(() => {});
     };
@@ -251,7 +252,7 @@ export default function CustomerDashboard() {
     formData.append('planFile', file);
 
     try {
-      const res = await fetch('http://localhost:5000/api/customer/upload-plan', {
+      const res = await fetch(`${API_URL}/api/customer/upload-plan`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -268,7 +269,7 @@ export default function CustomerDashboard() {
 
   const handleAcceptBudget = async (estId) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/customer/estimates/${estId}/accept`, {
+      const res = await fetch(`${API_URL}/api/customer/estimates/${estId}/accept`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -290,7 +291,7 @@ export default function CustomerDashboard() {
     // Simulate payment gateway checkout verification (1.5 seconds)
     setTimeout(async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/customer/estimates', {
+        const res = await fetch(`${API_URL}/api/customer/estimates`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -338,7 +339,7 @@ export default function CustomerDashboard() {
     setIsSending(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/messages', {
+      const res = await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -492,7 +493,7 @@ export default function CustomerDashboard() {
                             {est.admin_pdf_url && (
                               <div className="pt-1">
                                 <a
-                                  href={`http://localhost:5000${est.admin_pdf_url}`}
+                                  href={`${API_URL}${est.admin_pdf_url}`}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="inline-block text-[9px] bg-slate-900 hover:bg-slate-800 text-white font-bold px-2 py-1 rounded"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, DollarSign, MapPin, Send, MessageSquare, Briefcase, FileCheck, CheckCircle2, ShieldAlert } from 'lucide-react';
+import API_URL from '../config';
 
 export default function EmployeeDashboard() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export default function EmployeeDashboard() {
   }, []);
 
   const fetchDashboardInfo = async (authToken) => {
-    fetch('http://localhost:5000/api/employee/dashboard-info', {
+    fetch(`${API_URL}/api/employee/dashboard-info`, {
       headers: { 'Authorization': `Bearer ${authToken}` }
     })
       .then(res => res.json())
@@ -48,7 +49,7 @@ export default function EmployeeDashboard() {
   };
 
   const fetchAttendanceStatus = async (authToken) => {
-    fetch('http://localhost:5000/api/employee/attendance-status', {
+    fetch(`${API_URL}/api/employee/attendance-status`, {
       headers: { 'Authorization': `Bearer ${authToken}` }
     })
       .then(res => res.json())
@@ -57,7 +58,7 @@ export default function EmployeeDashboard() {
   };
 
   const fetchMessages = async (authToken) => {
-    fetch('http://localhost:5000/api/messages/1', {
+    fetch(`${API_URL}/api/messages/1`, {
       headers: { 'Authorization': `Bearer ${authToken}` }
     })
       .then(res => res.json())
@@ -77,7 +78,7 @@ export default function EmployeeDashboard() {
   const handleCheckIn = async () => {
     setAttMsg('');
     try {
-      const res = await fetch('http://localhost:5000/api/employee/check-in', {
+      const res = await fetch(`${API_URL}/api/employee/check-in`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -95,7 +96,7 @@ export default function EmployeeDashboard() {
   const handleCheckOut = async () => {
     setAttMsg('');
     try {
-      const res = await fetch('http://localhost:5000/api/employee/check-out', {
+      const res = await fetch(`${API_URL}/api/employee/check-out`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -115,7 +116,7 @@ export default function EmployeeDashboard() {
     if (!msgInput.trim()) return;
 
     try {
-      const res = await fetch('http://localhost:5000/api/messages', {
+      const res = await fetch(`${API_URL}/api/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

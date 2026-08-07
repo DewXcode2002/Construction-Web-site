@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Lock, Phone, MapPin, Award, ShieldAlert, KeyRound } from 'lucide-react';
+import API_URL from '../config';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ export default function Auth() {
     setError('');
     setSuccess('');
 
-    const url = isLogin ? 'http://localhost:5000/api/auth/login' : 'http://localhost:5000/api/auth/register';
+    const url = isLogin ? `${API_URL}/api/auth/login` : `${API_URL}/api/auth/register`;
     const payload = isLogin 
       ? { username, password }
       : { 

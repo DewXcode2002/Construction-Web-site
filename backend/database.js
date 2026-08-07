@@ -1,11 +1,30 @@
 import sqlite3 from 'sqlite3';
 import bcrypt from 'bcryptjs';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const dbPath = path.join(__dirname, 'database.sqlite');
+let dbPath = path.join(__dirname, 'database.sqlite');
+
+// Vercel workaround for SQLite write access
+if (process.env.VERCEL) {
+  const tmpDbPath = path.join('/tmp', 'database.sqlite');
+  try {
+    if (!fs.existsSync(tmpDbPath)) {
+      if (fs.existsSync(dbPath)) {
+        fs.copyFileSync(dbPath, tmpDbPath);
+        console.log('Pre-seeded database copied to /tmp');
+      } else {
+        console.log('No pre-seeded database found, starting fresh database in /tmp');
+      }
+    }
+    dbPath = tmpDbPath;
+  } catch (err) {
+    console.error('Failed to copy database to /tmp:', err.message);
+  }
+}
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {

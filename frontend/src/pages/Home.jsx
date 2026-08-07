@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home as HouseIcon, Building2, Hammer, Ruler, HardHat, Bolt, Droplets, Paintbrush, Trees, Phone, MessageSquare, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import API_URL from '../config';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -57,7 +58,7 @@ export default function Home() {
 
   // Fetch house plans on mount
   useEffect(() => {
-    fetch('http://localhost:5000/api/customer/plans')
+    fetch(`${API_URL}/api/customer/plans`)
       .then(res => res.json())
       .then(data => setHousePlans(data))
       .catch(err => console.error('Error fetching plans:', err));
