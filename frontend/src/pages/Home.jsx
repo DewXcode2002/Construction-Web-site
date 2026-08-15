@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home as HouseIcon, Building2, Hammer, Ruler, HardHat, Bolt, Droplets, Paintbrush, Trees, Phone, MessageSquare, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { 
+  Home as HouseIcon, Building2, Hammer, Ruler, HardHat, Bolt, Zap, 
+  Droplets, Paintbrush, Trees, Phone, MessageSquare, X, ChevronLeft, 
+  ChevronRight, ShieldCheck, CheckCircle2, Award, Sparkles, PhoneCall,
+  Grid, Layers, LayoutGrid, Wrench, Send, Clock, MapPin, UploadCloud, Calculator,
+  CreditCard, CheckCircle, DollarSign, FileText, Building
+} from 'lucide-react';
 import API_URL from '../config';
 
 export default function Home() {
@@ -14,6 +20,41 @@ export default function Home() {
 
   const [selectedService, setSelectedService] = useState(null);
   const [activeServicePhotoIdx, setActiveServicePhotoIdx] = useState(0);
+  const [modalQualityTier, setModalQualityTier] = useState('high'); // 'high', 'medium', 'customize'
+  const [uploadedPlanFile, setUploadedPlanFile] = useState(null);
+
+  // Request to Estimate & Payment Modal State
+  const [isRequestEstimateOpen, setIsRequestEstimateOpen] = useState(false);
+  const [estimateForm, setEstimateForm] = useState({
+    name: '',
+    phone: '',
+    location: '',
+    landSize: 10,
+    houseStories: 'single',
+    paymentMethod: 'card', // 'card', 'bank_transfer', 'cash'
+    cardName: '',
+    cardNumber: '',
+    cardExpiry: '',
+    cardCvc: '',
+    bankRef: '',
+    notes: ''
+  });
+  const [isSubmittingEstimate, setIsSubmittingEstimate] = useState(false);
+  const [estimateSuccess, setEstimateSuccess] = useState(null);
+  const [estimateError, setEstimateError] = useState('');
+
+  // Direct Inquiry Modal State
+  const [directInquiryService, setDirectInquiryService] = useState(null);
+  const [inquiryForm, setInquiryForm] = useState({
+    name: '',
+    phone: '',
+    location: '',
+    details: '',
+    contactTime: 'Morning (8AM - 12PM)'
+  });
+  const [isSubmittingInquiry, setIsSubmittingInquiry] = useState(false);
+  const [inquirySuccess, setInquirySuccess] = useState(false);
+  const [inquiryError, setInquiryError] = useState('');
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -64,42 +105,208 @@ export default function Home() {
       .catch(err => console.error('Error fetching plans:', err));
   }, []);
 
+  const handleOpenDirectInquiry = (srv, e) => {
+    if (e) e.stopPropagation();
+    setDirectInquiryService(srv);
+    setInquiryForm({
+      name: '',
+      phone: '',
+      location: '',
+      details: '',
+      contactTime: 'Morning (8AM - 12PM)'
+    });
+    setInquirySuccess(false);
+    setInquiryError('');
+  };
+
+  const handleDirectInquirySubmit = async (e) => {
+    e.preventDefault();
+    if (!inquiryForm.name || !inquiryForm.phone) {
+      setInquiryError('Please provide your name and phone number.');
+      return;
+    }
+    setIsSubmittingInquiry(true);
+    setInquiryError('');
+
+    try {
+      const res = await fetch(`${API_URL}/api/inquiries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: inquiryForm.name,
+          phone: inquiryForm.phone,
+          location: inquiryForm.location,
+          service_type: directInquiryService ? directInquiryService.name : 'General Inquiry',
+          details: inquiryForm.details,
+          contact_time: inquiryForm.contactTime
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setInquirySuccess(true);
+      } else {
+        setInquiryError(data.message || 'Failed to submit inquiry.');
+      }
+    } catch (err) {
+      setInquiryError('Network error. Please try calling us directly.');
+    } finally {
+      setIsSubmittingInquiry(false);
+    }
+  };
+
+  const handleOpenRequestEstimate = () => {
+    setSelectedService(null);
+    setIsRequestEstimateOpen(true);
+    setEstimateSuccess(null);
+    setEstimateError('');
+  };
+
+  const handleEstimateRequestSubmit = async (e) => {
+    e.preventDefault();
+    if (!estimateForm.name || !estimateForm.phone) {
+      setEstimateError('Please fill in your name and phone number.');
+      return;
+    }
+    if (estimateForm.paymentMethod === 'card' && (!estimateForm.cardNumber || !estimateForm.cardName)) {
+      setEstimateError('Please complete your credit/debit card payment details.');
+      return;
+    }
+
+    setIsSubmittingEstimate(true);
+    setEstimateError('');
+
+    try {
+      const refNo = 'RC-EST-' + Math.floor(100000 + Math.random() * 900000);
+      const paymentSummary = estimateForm.paymentMethod === 'card'
+        ? `Card Payment (Visa/Mastercard ending ${estimateForm.cardNumber.slice(-4) || '8912'})`
+        : estimateForm.paymentMethod === 'bank_transfer'
+        ? `Bank Transfer (Ref: ${estimateForm.bankRef || 'Commercial Bank Deposit'})`
+        : 'Cash Payment at Office/Site';
+
+      const detailsStr = `Official Estimate Request (${refNo}) | House Stories: ${estimateForm.houseStories} | Land: ${estimateForm.landSize} Perches | Quality Tier: ${modalQualityTier.toUpperCase()} | Attached Plan: ${uploadedPlanFile || 'Pending Blueprint Upload'} | Payment Method: ${paymentSummary} (LKR 1,500.00 Processing Fee Paid)`;
+
+      const res = await fetch(`${API_URL}/api/inquiries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: estimateForm.name,
+          phone: estimateForm.phone,
+          location: estimateForm.location,
+          service_type: 'Residential Construction (Estimate Request)',
+          details: detailsStr,
+          contact_time: 'Urgent Estimate Callback'
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setEstimateSuccess({
+          refNo,
+          amount: 'LKR 1,500.00',
+          method: paymentSummary,
+          tier: modalQualityTier.toUpperCase(),
+          stories: estimateForm.houseStories
+        });
+      } else {
+        setEstimateError(data.message || 'Failed to submit estimate request.');
+      }
+    } catch (err) {
+      setEstimateError('Network error. Please try again or call 076 911 73 98.');
+    } finally {
+      setIsSubmittingEstimate(false);
+    }
+  };
+
   const services = [
     { 
       name: 'Residential Construction', 
-      desc: 'Modern, durable, and customized family homes built to specifications.', 
+      desc: 'Turnkey home building (Single, 2 & 3-Story). Upload your house plan for official engineer estimation.', 
       icon: HouseIcon, 
-      color: 'bg-emerald-500/10 text-emerald-600',
-      description: 'We construct state-of-the-art custom residential homes, bungalows, and apartments across Sri Lanka. Our architectural engineers handle the entire process from structural design to modern finishing, ensuring compliance with local municipal guidelines.',
-      specs: { "Process": "Turnkey Construction", "Pricing": "From LKR 6,500/sqft", "Compliance": "Local Council Approval Guaranteed", "Warranties": "10-Year Structural Guarantee" },
+      color: 'bg-amber-500/10 text-amber-600',
+      isFlagship: true,
+      description: 'Our primary core expertise: Complete turnkey residential house construction across Sri Lanka. If you have an existing House Plan drawing, upload your blueprint to receive an official detailed cost estimate from our structural engineers (a small processing payment applies for official estimate drafting). Construction costs are determined by house stories (Single Story, 2-Story, 3-Story, etc.) and your selected material quality tier (High Quality Premium vs Medium Grade for tiles, bathware, timber species, electrical fittings, and roofing). Contact us directly to discuss site execution!',
+      specs: { 
+        "Primary Focus": "Flagship Core Service (නිවාස ඉදිකිරීම්)",
+        "House Levels": "Single-Story, Two-Stories, Three-Stories & Multi-Level",
+        "Plan Upload Estimate": "Upload House Plan Blueprint for Engineer Estimate (Processing Fee applies)",
+        "Material Quality": "High Quality (Rocell, Teak Wood, Dulux) / Medium Grade Options",
+        "Direct Contact": "Call 076 911 73 98 or WhatsApp for direct site discussion"
+      },
       gallery: [
-        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80"
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1600585152220-90363fe7e115?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80"
       ]
     },
     { 
-      name: 'Commercial Buildings', 
-      desc: 'Sleek, structurally sound office buildings, shops, and warehouses.', 
-      icon: Building2, 
-      color: 'bg-blue-500/10 text-blue-600',
-      description: 'We design and build contemporary office workspaces, showrooms, warehouses, and factories. Our teams utilize reinforced structural steel and heavy masonry columns built to withstand severe wind loads and seismic standards.',
-      specs: { "Category": "Commercial Engineering", "Specialty": "Steel Frameworks & Glass Facades", "Foundations": "Heavy RCC Pad Foundations", "Duration": "Custom Project Timeline" },
+      name: 'Electrical Wiring', 
+      desc: 'Certified single & three-phase wiring, conduit laying, DB box wiring & system installs.', 
+      icon: Bolt, 
+      color: 'bg-red-500/10 text-red-600',
+      description: 'Certified residential and industrial electrical wiring solutions by Rohana Construction. We configure concealed conduits, distribution boards, smart lighting controls, earthing systems, and CEB/LECO compliant safety setups.',
+      specs: { "Wiring Type": "Concealed Single & Three-Phase", "Materials": "Fire-retardant PVC conduits & ACL copper cables", "Safety Checks": "Insulation resistance & earth testing", "Certification": "CEB & LECO standards approval" },
       gallery: [
-        "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800&q=80",
         "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=800&q=80"
       ]
     },
     { 
-      name: 'Renovation', 
-      desc: 'Transformative remodeling for kitchens, bathrooms, offices, and full structures.', 
+      name: 'Painting', 
+      desc: 'Interior wall putty smoothing, moisture sealing & premium exterior weather-shield coating.', 
+      icon: Paintbrush, 
+      color: 'bg-pink-500/10 text-pink-600',
+      description: 'High-finish wall coating and aesthetic interior/exterior painting services. We apply multi-layer wall putty, moisture-proof sealers, and weather-guard coats to keep your walls vibrant and weather-resistant.',
+      specs: { "Layering": "1 Sealer + 2 Putty Coats + 2 Paint Coats", "Paint Brands": "Dulux WeatherShield / Robbialac Permoglaze", "Warranty": "5-Year weather proof coating warranty", "Eco Standard": "Ultra low VOC odourless paint" },
+      gallery: [
+        "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80"
+      ]
+    },
+    { 
+      name: 'Plumbing', 
+      desc: 'High-pressure water supply lines, underground drainage, PPR hot water & sanitary setup.', 
+      icon: Droplets, 
+      color: 'bg-cyan-500/10 text-cyan-600',
+      description: 'Complete plumbing layout routing, high-pressure booster pump installs, leak repairs, and high-end bathroom sanitary fitting setups. Engineered for zero leaks and long term reliability.',
+      specs: { "Piping": "Type-1000 PVC & PPR hot/cold lines", "Fittings": "Brass gate valves & stainless steel traps", "Inspections": "24-Hour hydrostatic leak pressure test", "Guarantee": "5-Year leak-free assurance" },
+      gallery: [
+        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80"
+      ]
+    },
+    { 
+      name: 'Carpentry', 
+      desc: 'Solid teak doors & windows, modular pantry cupboards, roof wood framing & ceilings.', 
       icon: Hammer, 
       color: 'bg-amber-500/10 text-amber-600',
-      description: 'Complete renovation, extension, and remodeling services. We specialize in transforming bathrooms, kitchens, office partitions, plastering repairs, and structural layout expansions.',
-      specs: { "Type": "Renovation & Remodel", "Materials": "Eco-friendly paint, tiles, premium wood", "Wastage Cleanup": "Included in standard quotes", "Worksite Safety": "Fully secured scaffolding" },
+      description: 'Master carpentry craftsmanship for custom solid teak & mahogany doors, window frames, kitchen pantry counters, timber roof framing, and decorative wooden ceiling installations.',
+      specs: { "Wood Types": "Seasoned Teak, Mahogany, Kempas Hardwood", "Roof Framing": "Micro-treated timber framework", "Pantry Setup": "Soft-close modular kitchen cabinets", "Treatment": "100% Anti-termite pressure treatment" },
       gallery: [
         "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
         "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80"
+      ]
+    },
+    { 
+      name: 'Slab Shuttering (Satalin)', 
+      desc: 'Heavy marine plywood formwork, TMT steel rod binding & ready-mix concreting.', 
+      icon: Layers, 
+      color: 'bg-indigo-500/10 text-indigo-600',
+      description: 'Professional slab shuttering (Satalin), beam formwork, column shuttering, TMT steel rebar binding, and ready-mix concrete pouring for single & multi-story structures.',
+      specs: { "Formwork": "Heavy Marine Plywood & Steel props", "Rebar Steel": "High-yield TMT Fe500 steel bars", "Concrete Grade": "Grade 25 / Grade 30 Ready-Mix", "Curing": "Supervised membrane water curing" },
+      gallery: [
+        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80"
+      ]
+    },
+    { 
+      name: 'Tile Work', 
+      desc: 'Precision floor & wall tiling, non-slip outdoor tiles, granite tops & marble laying.', 
+      icon: LayoutGrid, 
+      color: 'bg-emerald-500/10 text-emerald-600',
+      description: 'Flawless floor and wall tiling for residential and commercial spaces. We install 2x2ft & 2x4ft porcelain tiles, non-slip car porch tiles, granite kitchen countertops, and polished marble.',
+      specs: { "Tile Formats": "2x2 ft, 2x4 ft Porcelain & Granite Slabs", "Adhesive": "Waterproof polymer modified tile mortar", "Leveling": "Laser-level alignment & epoxy grouting", "Finishing": "Beveled edge grinding & stain seal" },
+      gallery: [
+        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80"
       ]
     },
     { 
@@ -113,151 +320,259 @@ export default function Home() {
         "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80",
         "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80"
       ]
-    },
-    { 
-      name: 'Structural Engineering', 
-      desc: 'Technical guidance, stress testing, stability reporting and inspections.', 
-      icon: HardHat, 
-      color: 'bg-slate-500/10 text-slate-700',
-      description: 'Expert stress analysis, column concrete assessments, soil boring analysis, and stability certificates. We offer professional structural sign-offs for housing loans and council clearances.',
-      specs: { "Service": "Inspection & Certifications", "Core Testing": "Soil bearing & concrete compression testing", "Compliance": "IESL Structural Standards", "Lead Time": "3-5 business days" },
-      gallery: [
-        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80"
-      ]
-    },
-    { 
-      name: 'Electrical Work', 
-      desc: 'Safe wiring, installations, and system maintenance by certified pros.', 
-      icon: Bolt, 
-      color: 'bg-red-500/10 text-red-600',
-      description: 'Certified residential and industrial wiring solutions. We configure distribution boards, smart lighting controls, lightning protectors, earth rods, and backup generators.',
-      specs: { "Installation": "Single & Three-phase wiring", "Materials": "Fire-retardant conduits & copper cables", "Safety Checks": "Full insulation resistance test", "Certification": "CEB & LECO compliance standards" },
-      gallery: [
-        "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=800&q=80"
-      ]
-    },
-    { 
-      name: 'Plumbing', 
-      desc: 'High-quality pipe layout, leakage fixing, and sanitary setup.', 
-      icon: Droplets, 
-      color: 'bg-cyan-500/10 text-cyan-600',
-      description: 'Precision plumbing layout routing, high-pressure booster pump installs, leak debugging, and high-end bathroom sanitary fitting setups.',
-      specs: { "Pipes": "Type-1000 PVC & PPR hot/cold water pipes", "Fittings": "Premium brass gate valves", "Inspections": "24-hour pressure leak checks", "Guarantee": "5-Year leak-free assurance" },
-      gallery: [
-        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80"
-      ]
-    },
-    { 
-      name: 'Painting', 
-      desc: 'Aesthetic interior & exterior coating using premium paint materials.', 
-      icon: Paintbrush, 
-      color: 'bg-pink-500/10 text-pink-600',
-      description: 'Premium interior wall smoothing using putty, moisture sealers, and aesthetic weather-guard exterior coating to keep your walls pristine.',
-      specs: { "Coats": "1 Putty coat + 1 Sealer + 2 Paint coats", "Paints": "Dulux WeatherShield / Robbialac Permoglaze", "Warranty": "5-Year weather proofing paint warranty", "Eco Standards": "Ultra low VOC paint option" },
-      gallery: [
-        "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80"
-      ]
-    },
-    { 
-      name: 'Landscaping', 
-      desc: 'Garden designs, turf setup, pathways and outdoor structural beauty.', 
-      icon: Trees, 
-      color: 'bg-teal-500/10 text-teal-600',
-      description: 'Landscape design incorporating turf grass layout, decorative retaining stone walls, stone paved driveways, and plants mapping for natural shading.',
-      specs: { "Turf Type": "Australian Blue Grass / Local Turf", "Paving": "Interlocking concrete blocks", "Drainage": "Integrated water runoff gullies", "Maintenance": "Optional weekly trimming packages" },
-      gallery: [
-        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80"
-      ]
-    },
+    }
   ];
 
   const projects = [
     { 
-      title: 'Luxury House', 
-      location: 'Colombo', 
+      id: 'rohana-single-house-1',
+      title: 'Modern Single Story House', 
+      location: 'Western Province', 
       category: 'house', 
-      image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80', 
-      tag: 'Residential',
-      description: 'A double-story luxury contemporary villa boasting high ceilings, open architectural planning, and custom mahogany woodwork. Features 4 spacious bedrooms, a modern modular kitchen, smart lighting control systems, and high-efficiency solar panel layouts.',
-      specs: { Size: '3,200 Sq Ft', Duration: '6 Months', 'Structure Type': 'Reinforced Concrete', 'Key Materials': 'Grade-A Timber, Italian Marble, Custom Steel Framing' },
+      isVerified: true,
+      image: '/images/rohana-completed-house/house1.jpg', 
+      tag: 'Rohana Completed Build',
+      description: 'A completed turnkey modern single-story family home engineered and constructed by Rohana Construction. Features custom mahogany-patterned sliding entrance gates, structural white masonry pillars, high-grade roof tiling, a wide paved car porch with non-slip floor tiles, weather-shield exterior paint finish, landscaped front lawn, premium interior marble-pattern floor tiling, custom kitchen pantry counter, arched interior doorways, and solid teak wood main doors with glass window frames.',
+      specs: { 
+        'Builder': 'Rohana Construction (Direct Work)',
+        'Project Status': '100% Completed & Handed Over',
+        'Structure Type': 'Single Story Reinforced Concrete', 
+        'Interior Tiling': 'Polished Marble-Pattern Porcelain Tiles',
+        'Kitchen & Pantry': 'Granite Countertop & Tile Backsplash',
+        'Doors & Windows': 'Solid Teak Main Door & Teak Glass Windows',
+        'Car Porch & Passageway': 'Steel Roof Structure & Non-Slip Floor Tiles',
+        'Boundary & Security': 'Custom Wood-Finish Metal Gate & White Pillars',
+        'Roof & Finishing': 'High-Pitch Roof Tiles & Weather-Shield Paint',
+        'Garden & Landscaping': 'Natural Grass Lawn & Interlocking Stone Paving'
+      },
       gallery: [
-        'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80'
+        '/images/rohana-completed-house/house1.jpg',
+        '/images/rohana-completed-house/house2.jpg',
+        '/images/rohana-completed-house/house3.jpg',
+        '/images/rohana-completed-house/house4.jpg',
+        '/images/rohana-completed-house/house5.jpg',
+        '/images/rohana-completed-house/house6.jpg',
+        '/images/rohana-completed-house/house7.jpg',
+        '/images/rohana-completed-house/house8.jpg',
+        '/images/rohana-completed-house/house9.jpg',
+        '/images/rohana-completed-house/house10.jpg',
+        '/images/rohana-completed-house/house11.jpg',
+        '/images/rohana-completed-house/house12.jpg',
+        '/images/rohana-completed-house/house13.jpg',
+        '/images/rohana-completed-house/house14.jpg',
+        '/images/rohana-completed-house/house15.jpg'
+      ],
+      galleryCaptions: [
+        'Full Front View: Modern Single-Story House, Paved Driveway & Car Porch',
+        'Boundary Wall & Meters: Finished White Exterior Walls & Electricity/Water Meter Setup',
+        'Entrance Gate Detail: Modern Wood-Finish Sliding Main Gate & Reinforced Pillar',
+        'Porch & Veranda View: Stylish Non-Slip Floor Tiling & Square Support Columns',
+        'Garden & Gate View: Looking Out From Veranda Towards Lawn & Security Gate',
+        'Interior Finish: Premium Marble Floor Tiling, Pantry Counter & Teak Archway',
+        'Side Porch Passageway: Covered Driveway Passageway & Steel Roof Framework',
+        'Front Entrance Doors: Solid Teak Main Door & Custom Glass Windows with Security Grills',
+        'Bedroom Interior: Polished Marble Floor Tiling, Solid Teak Door & Grid Ceiling Finish',
+        'On-Site Construction Stage: Active Structural Beams, Masonry Walls & Porch Framing by Rohana Team',
+        'Veranda Doorway: Crafted Teak Panel Main Door & Glass Window Frame with Security Grills',
+        'Lawn & Porch Perspective: View from Open Gate Across Manicured Grass Lawn & Tiled Car Porch',
+        'Living Room Interior: Marble Porcelain Floor Tiling, Skirting & Solid Teak Window',
+        'Side Retaining Wall: Engineered Rubble Masonry Retaining Foundation & Side Elevation',
+        'Interior Corridor: Double Teak Doors, Polished Marble Tiles & Black Grid Ceiling'
       ]
     },
     { 
-      title: 'Office Building', 
-      location: 'Gampaha', 
-      category: 'commercial', 
-      image: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80', 
-      tag: 'Commercial',
-      description: 'A state-of-the-art 4-story commercial office building designed for multi-tenant configurations. Incorporates double-glazed glass facades for temperature control, backup diesel generator housings, fire suppression piping, and modular office cubicles.',
-      specs: { Size: '12,500 Sq Ft', Duration: '14 Months', 'Structure Type': 'Steel Portal Frame', 'Key Materials': 'Structural Steel, Glass Curtain Wall, AAC Blocks' },
-      gallery: [
-        'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80'
-      ]
-    },
-    { 
-      title: 'Shop Renovation', 
-      location: 'Negombo', 
-      category: 'renovation', 
-      image: 'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80', 
-      tag: 'Renovation',
-      description: 'Complete structural interior tear-down and architectural remodeling of a high-end retail showroom. We restructured load-bearing partition blocks, laid brand new large-format porcelain tiling, and set up custom drop-ceiling fixtures with warm LED strips.',
-      specs: { Size: '1,800 Sq Ft', Duration: '6 Weeks', 'Remodel Type': 'Full Interior Refit', 'Key Materials': 'Gypsum Boards, LED fixtures, Large format Tiles' },
-      gallery: [
-        'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1581858726788-75bc0f6a952d?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1562259949-e8e7689d7828?auto=format&fit=crop&w=800&q=80'
-      ]
-    },
-    { 
-      title: 'Modern Villa', 
-      location: 'Colombo', 
+      id: 'rohana-3story-piliyandala-1',
+      title: 'Luxury 3-Story Modern Residence', 
+      location: 'Piliyandala Town', 
       category: 'house', 
-      image: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80', 
-      tag: 'Residential',
-      description: 'A single-story contemporary villa highlighting seamless indoor-outdoor living boundaries. The design features a private central courtyard pool, high-span sliding aluminum doors, and customized structural masonry columns.',
-      specs: { Size: '2,400 Sq Ft', Duration: '8 Months', 'Structure Type': 'Masonry load-bearing', 'Key Materials': 'Exposed Concrete, Safety Glass, Hardwood decking' },
+      isVerified: true,
+      image: '/images/rohana-piliyandala-house/piliyandala1.jpg', 
+      tag: 'Rohana Completed Build',
+      description: 'A grand 3-story luxury contemporary residence engineered and constructed turnkey by Rohana Construction in Piliyandala Town. Highlights vaulted exposed timber under-roof ceiling structures, custom floating hardwood staircases with modern black steel wire tension balustrades, polished marble porcelain floor tiling, mahogany kitchen pantry cabinets with black granite countertops, open rooftop terrace deck with wood-texture tiles, floor-to-ceiling louvered glass window panels for natural daylighting, automated motorized roller shutter garage, and upper floor balcony.',
+      specs: { 
+        'Builder': 'Rohana Construction (100% Completed)',
+        'Location': 'Piliyandala Town, Western Province',
+        'Structure Type': '3-Story Reinforced Concrete Frame',
+        'Ceilings & Roof': 'Exposed Polished Timber Ceiling & Vaulted Rafters',
+        'Staircase Engineering': 'Floating Hardwood Steps & Steel Wire Tension Balustrades',
+        'Kitchen & Pantry': 'Mahogany Timber Cabinets & Black Granite Countertops',
+        'Rooftop Terrace': 'Wood-Texture Outdoor Floor Tiling & Safety Railings',
+        'Flooring & Finish': 'High-Gloss Polished Marble Porcelain Tiles',
+        'Daylighting & Louvers': 'Floor-to-Ceiling Louvered Glass Windows & Teak Frames',
+        'Garage & Access': 'Motorized Roller Shutter & Wood-grain Garage Tiling',
+        'Outdoor Walkways': 'Tri-Color Interlocking Paving Block Pathways'
+      },
       gallery: [
-        'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1595841696667-55275b706c4f?auto=format&fit=crop&w=800&q=80'
+        '/images/rohana-piliyandala-house/piliyandala1.jpg',
+        '/images/rohana-piliyandala-house/piliyandala2.jpg',
+        '/images/rohana-piliyandala-house/piliyandala3.jpg',
+        '/images/rohana-piliyandala-house/piliyandala4.jpg',
+        '/images/rohana-piliyandala-house/piliyandala5.jpg',
+        '/images/rohana-piliyandala-house/piliyandala6.jpg',
+        '/images/rohana-piliyandala-house/piliyandala7.jpg',
+        '/images/rohana-piliyandala-house/piliyandala8.jpg',
+        '/images/rohana-piliyandala-house/piliyandala9.jpg',
+        '/images/rohana-piliyandala-house/piliyandala10.jpg',
+        '/images/rohana-piliyandala-house/piliyandala11.jpg',
+        '/images/rohana-piliyandala-house/piliyandala12.jpg',
+        '/images/rohana-piliyandala-house/piliyandala13.jpg',
+        '/images/rohana-piliyandala-house/piliyandala14.jpg',
+        '/images/rohana-piliyandala-house/piliyandala15.jpg',
+        '/images/rohana-piliyandala-house/piliyandala16.jpg',
+        '/images/rohana-piliyandala-house/piliyandala17.jpg',
+        '/images/rohana-piliyandala-house/piliyandala18.jpg',
+        '/images/rohana-piliyandala-house/piliyandala19.jpg',
+        '/images/rohana-piliyandala-house/piliyandala20.jpg'
+      ],
+      galleryCaptions: [
+        'Front Elevation: Grand 3-Story Residence, Roller Shutter Garage & Rooftop Deck',
+        'Side Perspective: 3-Level Concrete Frame Structure & Open Rooftop Pergola',
+        'Boundary Wall & Façade: Molded White Retaining Wall & Teak Window Frames',
+        'Main Entry Steps: Roller Shutter Garage, Wicket Entrance Door & Meter Box Unit',
+        'Garage & Balcony View: Open Roller Shutter Entrance & Timber Louver Shading Panels',
+        'Upper Floor Lounge: Polished Marble Floor Tiling, Louvered Windows & Teak Railings',
+        'Custom Staircase: Hardwood Treads & Steel Balustrades under Exposed Timber Ceiling',
+        'Atrium Daylight View: High Teak Windows, Exposed Rafters & Sunlit Stairwell',
+        'Staircase Engineering: Floating Timber Steps with Tension Wire Safety Railings',
+        'Spacious Living Hall: Vaulted Wooden Ceiling Structure & Panoramic Teak Glass Windows',
+        'Ground Floor Foyer: High-Gloss Marble Floor Tiling & Open Staircase View',
+        'Side Walkway: Tri-Color Interlocking Paving Blocks & Full-Length Teak French Windows',
+        'Side Elevation Profile: 3-Story Concrete Structure & Rooftop Pergola Gazebo',
+        'Indoor Garage Interior: Wood-Grain Floor Tiling & Automated Roller Shutter Door',
+        'Rooftop Terrace Deck: Wood-Texture Outdoor Floor Tiling & Teak Stairwell Exit Door',
+        'Rooftop Outdoor Corridor: Black Steel Safety Railings & Open Scenic Views',
+        'Modern Kitchen Pantry: Custom Mahogany Timber Cabinets & Black Granite Countertop',
+        'Teak French Balcony Doors: Full-Height Glass Panes & Steel Safety Railings',
+        'Bedroom Interior: Polished Marble Tiles, Teak Door & Wall Sconce Lighting',
+        'Dining / Pantry Nook: Custom Mahogany Wall & Base Cabinets, Wood-Grain Floor Tiling & Sconce Lighting'
       ]
     },
     { 
-      title: 'Mall Showroom', 
-      location: 'Negombo', 
+      id: 'rohana-3story-modern-2',
+      title: 'Contemporary 3-Story Modern Residence', 
+      location: 'Western Province', 
+      category: 'house', 
+      isVerified: true,
+      image: '/images/rohana-3story-house-2/house_3s_5.jpg', 
+      tag: 'Rohana Completed Build',
+      description: 'A newly engineered 3-story contemporary family home constructed turnkey by Rohana Construction. Features a vaulted exposed timber roof ceiling in the top floor lounge, covered rooftop terrace deck paved with non-slip granite-texture outdoor tiles, terracotta brick paved veranda walkways with dark under-eaves timber framing, multi-flight wooden staircases with carved timber banisters & steel motif spindles, upper floor balcony lobbies, solid timber studded entrance doors, mahogany dining pantry wall cabinets, wood pendant light fixtures, high-gloss marble & wood-grain porcelain floor tiling, white exterior finishing with gray masonry boundary walls, custom security entrance gate with wicket door, ambient outdoor wall sconce illumination, steel carport pergola framework, and expansive glass windows with security grills.',
+      specs: { 
+        'Builder': 'Rohana Construction (100% Turnkey)',
+        'Project Status': 'Finishing & Handover Phase',
+        'Structure Type': '3-Story Reinforced Concrete Structure',
+        'Roof Lounge & Ceilings': 'Vaulted Exposed Timber Roof Rafters & Beams',
+        'Rooftop Terrace': 'Covered Deck with Granite-Texture Non-Slip Outdoor Tiles',
+        'Veranda & Walkways': 'Terracotta Brick Paved Pathways & Timber Eaves Framing',
+        'Staircase Engineering': 'Carved Timber Banisters & Black Steel Motif Spindles',
+        'Entrance Door': 'Solid Hardwood Studded Panel Main Door',
+        'Bedrooms & Interiors': 'Marble & Wood-Grain Porcelain Tiling with Teak Doors',
+        'Kitchen & Dining': 'Mahogany Wall Pantry Units & Dining Lounge',
+        'Boundary & Security': 'Gray Masonry Wall, Steel Gate & Diamond Balustrade Motifs'
+      },
+      gallery: [
+        '/images/rohana-3story-house-2/house_3s_5.jpg',
+        '/images/rohana-3story-house-2/house_3s_1.jpg',
+        '/images/rohana-3story-house-2/house_3s_2.jpg',
+        '/images/rohana-3story-house-2/house_3s_3.jpg',
+        '/images/rohana-3story-house-2/house_3s_4.jpg',
+        '/images/rohana-3story-house-2/house_3s_6.jpg',
+        '/images/rohana-3story-house-2/house_3s_7.jpg',
+        '/images/rohana-3story-house-2/house_3s_8.jpg',
+        '/images/rohana-3story-house-2/house_3s_9.jpg',
+        '/images/rohana-3story-house-2/house_3s_10.jpg',
+        '/images/rohana-3story-house-2/house_3s_11.jpg',
+        '/images/rohana-3story-house-2/house_3s_12.jpg',
+        '/images/rohana-3story-house-2/house_3s_13.jpg',
+        '/images/rohana-3story-house-2/house_3s_14.jpg',
+        '/images/rohana-3story-house-2/house_3s_15.jpg',
+        '/images/rohana-3story-house-2/house_3s_16.jpg',
+        '/images/rohana-3story-house-2/house_3s_17.jpg',
+        '/images/rohana-3story-house-2/house_3s_18.jpg',
+        '/images/rohana-3story-house-2/house_3s_19.jpg',
+        '/images/rohana-3story-house-2/house_3s_20.jpg'
+      ],
+      galleryCaptions: [
+        'Dusk Façade View: Evening Front Elevation with Warm Wall Sconce Illumination & Entrance Gate',
+        'Full Front Elevation: 3-Story Residence, Covered Rooftop Terrace & Boundary Wall',
+        'Street Entrance Approach: Extended Boundary Wall, Gateway Arch & Surrounding Grounds',
+        'Side Perspective: 3-Level White Concrete Façade & Gravel Courtyard Driveway',
+        'Upper Terrace Aerial View: Looking Down at Landscaped Lawn & Steel Carport Framework',
+        'Main Entrance Hall: Studded Solid Hardwood Door, Pendant Lighting & Wood-Grain Tiling',
+        'Open Foyer Perspective: Looking Out From Main Door Towards Green Lawn & Entrance Gate',
+        'Dining Hall & Pantry: Mahogany Wall Cabinets, Recessed LED Ceiling Lights & Wood Flooring',
+        'Aerial Lawn & Carport: Top View of Landscaped Garden Path & Steel Carport Framework',
+        'Living Room Interior: Custom Wooden Staircase Banister, Ceiling Fan & Window Security Grills',
+        'Upper Bedroom Interior: Wood-Grain Porcelain Tiling, Ceiling Fan & Security Window Grills',
+        'Bedroom Hallway View: Teak Solid Wooden Door & Marble-Pattern Porcelain Flooring',
+        'Multi-Flight Staircase: Hardwood Treads, Carved Timber Banister & Black Steel Motif Spindles',
+        'Upper Floor Stair Lobby: Carved Timber Railings & Access Doorway to Terrace Balcony',
+        'Master Bedroom / Study: High-Gloss Marble Porcelain Tiling & 3-Pane Teak Window',
+        'Terracotta Veranda Walkway: Brick Paved Passageway, Exposed Timber Eaves & Lantern Lighting',
+        'Covered Rooftop Terrace Deck: Non-Slip Granite-Texture Outdoor Tiling & Panoramic Views',
+        'Custom Teak Window Detail: Solid Teak Wood Frame, Glass Panes & Iron Security Grills',
+        'Rooftop Terrace Balcony View: Steel Roof Framing, Diamond Motif Balustrade & Hilltop Vista',
+        'Top Floor Roof Lounge: Vaulted Exposed Timber Rafters, Polished Marble Tiles & Double Teak Doors'
+      ]
+    },
+    { 
+      id: 'rohana-5story-avissawella-1',
+      title: '5-Story Medical & Commercial Complex', 
+      location: 'Avissawella Town', 
       category: 'commercial', 
-      image: 'https://images.unsplash.com/photo-1555421689-491a97ff2040?auto=format&fit=crop&w=800&q=80', 
-      tag: 'Commercial',
-      description: 'Structural expansion and architectural fit-out for a clothing franchise store inside a busy commercial complex. Includes heavy metal mezzanine floors, load testing, custom shelving, and modern display fixtures.',
-      specs: { Size: '4,000 Sq Ft', Duration: '3 Months', 'Fit-out Type': 'Commercial Shell Fit-out', 'Key Materials': 'Mezzanine Steel, Powder-coated Aluminum, Tempered Glass' },
+      isVerified: true,
+      image: '/images/rohana-avissawella-building/avissawella1.jpg', 
+      tag: 'Rohana Completed Commercial',
+      description: 'A heavy-duty 5-story commercial medical center constructed turnkey by Rohana Construction for a specialist medical doctor in Avissawella Town (VS Fertility & Women’s Health Care Center). Features spacious open-plan patient waiting lounges with high-gloss porcelain floor tiling, doctor consultation rooms, clinical reception lobbies with teak French doors, staff pantry & refreshment units with mahogany cabinetry and black granite countertops, internal access staircases with non-slip tiled treads, solid teak entrance doors with top louvers, open rooftop terrace deck with steel superstructure for the illuminated billboard tower, weather-shield exterior coating, and reinforced concrete column framing engineered for healthcare facilities.',
+      specs: { 
+        'Client': 'Medical Doctor (Specialist Health Center)',
+        'Location': 'Avissawella Town, Sabaragamuwa Province',
+        'Structure Type': '5-Story Heavy Concrete Column & Beam Frame',
+        'Category': 'Commercial & Healthcare Facility Construction',
+        'Interior & Patient Halls': 'Spacious Open Waiting Lounges & Polished Porcelain Tiling',
+        'Consultation Rooms': 'Private Clinical Chambers & Teak Panel Doors',
+        'Staff Pantry & Refreshment': 'Mahogany Timber Cabinets & Black Granite Countertop',
+        'Staircase & Safety': 'Internal Stairways with Black Steel Balustrades',
+        'Doors & Windows': 'Solid Teak Glass Panel Entrance Doors & Louvers',
+        'Rooftop Deck & Signage': 'Open Terrace Deck & Structural Steel Billboard Tower',
+        'Façade Architecture': 'Multi-Tier Stepped Balconies & Black Steel Railings'
+      },
       gallery: [
-        'https://images.unsplash.com/photo-1555421689-491a97ff2040?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=80'
-      ]
-    },
-    { 
-      title: 'Home Expansion', 
-      location: 'Gampaha', 
-      category: 'renovation', 
-      image: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=800&q=80', 
-      tag: 'Renovation',
-      description: 'Adding a secondary unit story to an existing residential building. Conducted load calculations on historical columns, cast concrete floor spans, reinforced foundations, and added a customized steel staircase.',
-      specs: { Size: '1,200 Sq Ft (Added)', Duration: '3 Months', 'Extension Type': 'Second Story Addition', 'Key Materials': 'Reinforcement bars, Ready-mix concrete, Iron staircase' },
-      gallery: [
-        'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1581858726788-75bc0f6a952d?auto=format&fit=crop&w=800&q=80'
+        '/images/rohana-avissawella-building/avissawella1.jpg',
+        '/images/rohana-avissawella-building/avissawella2.jpg',
+        '/images/rohana-avissawella-building/avissawella3.jpg',
+        '/images/rohana-avissawella-building/avissawella4.jpg',
+        '/images/rohana-avissawella-building/avissawella5.jpg',
+        '/images/rohana-avissawella-building/avissawella6.jpg',
+        '/images/rohana-avissawella-building/avissawella7.jpg',
+        '/images/rohana-avissawella-building/avissawella8.jpg',
+        '/images/rohana-avissawella-building/avissawella9.jpg',
+        '/images/rohana-avissawella-building/avissawella10.jpg',
+        '/images/rohana-avissawella-building/avissawella11.jpg',
+        '/images/rohana-avissawella-building/avissawella12.jpg',
+        '/images/rohana-avissawella-building/avissawella13.jpg',
+        '/images/rohana-avissawella-building/avissawella14.jpg',
+        '/images/rohana-avissawella-building/avissawella15.jpg',
+        '/images/rohana-avissawella-building/avissawella16.jpg',
+        '/images/rohana-avissawella-building/avissawella17.jpg'
+      ],
+      galleryCaptions: [
+        'Front Roadside Elevation: 5-Story Commercial Building & Rooftop Signage Tower',
+        'Balcony Walkways: Non-Slip Tiled Outer Corridors & Black Steel Safety Railings',
+        'Multi-Tier Balcony Architecture: 5-Level Stepped Concrete Frame & AC Compressor Setup',
+        'Side Elevation: Commercial Entrance Bay & VS Fertility Medical Center Billboard',
+        'Corner Façade View: Geometric Balcony Design & Heavy Structural Columns across 5 Floors',
+        'Upper Stair Landing: Black Steel Safety Balustrades & Access Hallway',
+        'Teak Entrance Doors: Custom Teak Frame Glass Paned Doors & Top Louver Vents',
+        'Elevated Balcony View: Upper Floor Corridor Railings overlooking Avissawella Town',
+        'Main Internal Staircase: Non-Slip Tiled Treads, Black Steel Balustrades & Lobby Space',
+        'Rooftop Terrace Deck: Open Outdoor Deck & VS Fertility Center Billboard Steel Superstructure',
+        'Patient Waiting Lounge: Open-Plan Clinical Floor, High-Gloss Porcelain Tiling & Teak Windows',
+        'Doctor’s Consultation Room: Polished Porcelain Tiling & Teak Window View to Staircase Landing',
+        'Clinical Hall Floor: Structural Load-Bearing Columns, Ceiling Fans & Teak Glass Windows',
+        'Clinical Reception Lobby: Polished Floor & Teak French Doors to Outdoor Balcony',
+        'Internal Clinical Corridor: Multiple Solid Teak Doors to Consultation Chambers',
+        'Doctor’s Private Chamber: Matte Floor Tiling & Teak Window View to Stair Landing',
+        'Medical Staff Pantry: Custom Mahogany Wall & Base Cabinets with Black Granite Countertop'
       ]
     }
   ];
@@ -373,13 +688,36 @@ export default function Home() {
               <div 
                 key={idx} 
                 onClick={() => handleServiceClick(srv)}
-                className="bg-white p-8 rounded-2xl border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all group duration-300 cursor-pointer"
+                className="bg-white p-7 rounded-2xl border border-slate-200/80 hover:shadow-xl hover:-translate-y-1 transition-all group duration-300 cursor-pointer flex flex-col justify-between"
               >
-                <div className={`p-4 rounded-xl w-fit ${srv.color} mb-6 transition-transform group-hover:scale-110`}>
-                  <srv.icon className="h-6 w-6" />
+                <div>
+                  <div className="flex items-center justify-between mb-5">
+                    <div className={`p-3.5 rounded-xl ${srv.color} transition-transform group-hover:scale-110 shadow-sm`}>
+                      <srv.icon className="h-6 w-6" />
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+                      Professional Service
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-extrabold text-slate-900 mb-2.5 group-hover:text-amber-600 transition-colors">{srv.name}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed mb-6 font-normal">{srv.desc}</p>
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-3 group-hover:text-amber-500 transition-colors">{srv.name}</h3>
-                <p className="text-sm text-slate-500 leading-relaxed">{srv.desc}</p>
+
+                <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={(e) => handleOpenDirectInquiry(srv, e)}
+                    className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 px-3 rounded-xl text-xs transition-all flex items-center justify-center space-x-1.5 shadow-sm shadow-amber-500/20 cursor-pointer"
+                  >
+                    <PhoneCall className="h-3.5 w-3.5" />
+                    <span>Direct Contact</span>
+                  </button>
+                  <button
+                    onClick={() => handleServiceClick(srv)}
+                    className="bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer text-center"
+                  >
+                    View Specs
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -391,27 +729,34 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-end justify-between mb-12 gap-6">
             <div className="space-y-4">
-              <span className="text-xs uppercase tracking-widest font-extrabold text-amber-600 bg-amber-500/10 px-3 py-1 rounded-full">
-                Our Work
+              <span className="text-xs uppercase tracking-widest font-extrabold text-amber-600 bg-amber-500/10 px-3 py-1 rounded-full flex items-center gap-1.5 w-fit">
+                <Sparkles className="h-3.5 w-3.5" /> Our Completed Work
               </span>
               <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900">
                 Recent Completed Projects
               </h2>
+              <p className="text-sm text-slate-500 max-w-xl">
+                Explore real completed builds by Rohana Construction. We deliver high-quality craftsmanship, structural integrity, and 100% customer satisfaction.
+              </p>
             </div>
             
             {/* Project Filters */}
             <div className="flex flex-wrap gap-2">
-              {['all', 'house', 'commercial', 'renovation'].map((filter) => (
+              {[
+                { id: 'all', label: 'All Builds' },
+                { id: 'house', label: 'Residential Houses' },
+                { id: 'commercial', label: 'Commercial Complexes' }
+              ].map((cat) => (
                 <button
-                  key={filter}
-                  onClick={() => setActiveFilter(filter)}
+                  key={cat.id}
+                  onClick={() => setActiveFilter(cat.id)}
                   className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg border transition-all cursor-pointer ${
-                    activeFilter === filter
+                    activeFilter === cat.id
                       ? 'bg-slate-900 border-slate-900 text-white'
                       : 'border-slate-200 text-slate-500 hover:bg-slate-50'
                   }`}
                 >
-                  {filter}s
+                  {cat.label}
                 </button>
               ))}
             </div>
@@ -422,7 +767,11 @@ export default function Home() {
               <div 
                 key={idx} 
                 onClick={() => handleProjectClick(proj)}
-                className="group relative overflow-hidden rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl transition-all cursor-pointer hover:border-amber-500/50"
+                className={`group relative overflow-hidden rounded-2xl border shadow-sm hover:shadow-xl transition-all cursor-pointer ${
+                  proj.isVerified 
+                    ? 'border-amber-500/50 ring-2 ring-amber-500/20 bg-gradient-to-b from-amber-500/5 to-transparent hover:border-amber-500' 
+                    : 'border-slate-100 hover:border-amber-500/50 bg-white'
+                }`}
               >
                 <div className="h-64 overflow-hidden relative">
                   <img 
@@ -430,17 +779,25 @@ export default function Home() {
                     alt={proj.title} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                   />
-                  <div className="absolute top-4 left-4 bg-slate-900/80 backdrop-blur-sm text-amber-500 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded">
+                  <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-sm text-amber-500 text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded flex items-center gap-1.5 shadow-md">
+                    {proj.isVerified && <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />}
                     {proj.tag}
                   </div>
+                  {proj.isVerified && (
+                    <div className="absolute top-4 right-4 bg-emerald-600 text-white text-[9px] font-extrabold tracking-wider uppercase px-2.5 py-1 rounded-full shadow-md flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Real Build
+                    </div>
+                  )}
                 </div>
                 <div className="p-6 bg-white flex items-center justify-between">
                   <div>
-                    <h3 className="font-bold text-slate-900 text-lg">{proj.title}</h3>
+                    <h3 className="font-bold text-slate-900 text-lg group-hover:text-amber-600 transition-colors flex items-center gap-1.5">
+                      {proj.title}
+                    </h3>
                     <span className="text-xs text-slate-500">{proj.location}</span>
                   </div>
-                  <div className="text-xs font-bold text-amber-605 hover:text-amber-500 transition-colors">
-                    View Details
+                  <div className="text-xs font-bold text-amber-600 hover:text-amber-500 transition-colors bg-amber-500/10 px-3 py-1.5 rounded-lg">
+                    View Photos
                   </div>
                 </div>
               </div>
@@ -452,58 +809,92 @@ export default function Home() {
       {/* House Plans Section */}
       <section id="plans" className="py-24 bg-slate-50 border-t border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4 mb-16">
+          <div className="text-center space-y-4 mb-12">
             <span className="text-xs uppercase tracking-widest font-extrabold text-amber-600 bg-amber-500/10 px-3 py-1 rounded-full">
-              Ready Designs
+              Architectural & House Plans
             </span>
             <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900">
-              Browse House Design Plans
+              Custom House Plan Drawing Service
             </h2>
-            <p className="max-w-xl mx-auto text-sm text-slate-500">
-              Select one of our architectural blueprints to start. You can request cost estimation and custom modifications.
+            <p className="max-w-2xl mx-auto text-sm text-slate-500">
+              Our experienced draftsmen and structural engineers create tailored 2D blueprints, municipal council approval drawings, and 3D architectural walkthroughs directly for your plot of land.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {housePlans.map((plan) => (
-              <div key={plan.id} className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-md transition-all">
-                <div className="h-56 relative overflow-hidden">
-                  <img src={plan.image_url} alt={plan.title} className="w-full h-full object-cover" />
-                </div>
-                <div className="p-6 space-y-4">
-                  <h3 className="font-bold text-slate-900 text-lg">{plan.title}</h3>
-                  <p className="text-slate-500 text-xs line-clamp-2 leading-relaxed">{plan.description}</p>
-                  
-                  <div className="grid grid-cols-3 gap-2 border-y border-slate-100 py-3 text-center text-xs text-slate-600">
-                    <div>
-                      <span className="block font-bold text-slate-900">{plan.bedrooms}</span>
-                      Bedrooms
-                    </div>
-                    <div>
-                      <span className="block font-bold text-slate-900">{plan.bathrooms}</span>
-                      Bathrooms
-                    </div>
-                    <div>
-                      <span className="block font-bold text-slate-900">{plan.floors}</span>
-                      {plan.floors > 1 ? 'Floors' : 'Floor'}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <div>
-                      <span className="block text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Rough Price</span>
-                      <span className="font-bold text-emerald-600 text-base">LKR {(plan.price_estimate/1000000).toFixed(1)}M</span>
-                    </div>
-                    <button
-                      onClick={() => handleRequestPlan(plan.id)}
-                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold px-4 py-2.5 rounded-lg transition-colors cursor-pointer"
-                    >
-                      Request Plan
-                    </button>
-                  </div>
-                </div>
+          {/* Direct Custom House Plan Drawing Panel */}
+          <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950 p-8 md:p-12 rounded-3xl text-white shadow-2xl border border-slate-800 space-y-8">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-b border-slate-800 pb-8">
+              <div className="space-y-3 max-w-3xl">
+                <span className="bg-amber-500 text-slate-950 text-[11px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider">
+                  Direct Architectural Contact
+                </span>
+                <h3 className="text-2xl md:text-4xl font-black text-white">Get a Custom House Plan Drawn for Your Land</h3>
+                <p className="text-xs md:text-sm text-slate-300 leading-relaxed">
+                  Have specific ideas or land dimensions for your new house? Contact our engineering team directly to discuss your layout requirements, land boundaries, budget, and structural needs.
+                </p>
               </div>
-            ))}
+
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <a
+                  href="tel:+94769117398"
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold px-5 py-3.5 rounded-xl text-xs flex items-center space-x-2 transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
+                >
+                  <Phone className="h-4 w-4" />
+                  <span>Call 076 911 73 98</span>
+                </a>
+                <a
+                  href={`https://wa.me/94769117398?text=${encodeURIComponent("Hello Rohana Construction, I would like to inquire about drawing a custom house plan for my land.")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold px-5 py-3.5 rounded-xl text-xs flex items-center space-x-2 transition-all shadow-lg cursor-pointer"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>WhatsApp Inquiry</span>
+                </a>
+                <button
+                  onClick={(e) => handleOpenDirectInquiry({ name: 'Custom Architectural House Design' }, e)}
+                  className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-extrabold px-5 py-3.5 rounded-xl text-xs flex items-center space-x-2 transition-all cursor-pointer"
+                >
+                  <PhoneCall className="h-4 w-4 text-amber-400" />
+                  <span>Submit Inquiry</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Key Deliverables Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 pt-2">
+              <div className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">
+                  <Ruler className="h-5 w-5" />
+                </div>
+                <h4 className="font-extrabold text-sm text-white">2D Blueprints</h4>
+                <p className="text-[11px] text-slate-400 leading-normal">Detailed structural & architectural floor plans, elevations & section cuts.</p>
+              </div>
+
+              <div className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <h4 className="font-extrabold text-sm text-white">Council Approvals</h4>
+                <p className="text-[11px] text-slate-400 leading-normal">Guaranteed municipal council & local authority approval drawing formats.</p>
+              </div>
+
+              <div className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <h4 className="font-extrabold text-sm text-white">3D Walkthroughs</h4>
+                <p className="text-[11px] text-slate-400 leading-normal">High-resolution 3D interior & exterior realistic walkthrough animations.</p>
+              </div>
+
+              <div className="bg-slate-900/60 border border-slate-800 p-5 rounded-2xl space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold">
+                  <Bolt className="h-5 w-5" />
+                </div>
+                <h4 className="font-extrabold text-sm text-white">MEP Diagrams</h4>
+                <p className="text-[11px] text-slate-400 leading-normal">Complete mechanical, electrical wiring & plumbing system drawings.</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -618,6 +1009,13 @@ export default function Home() {
                     </button>
                   </>
                 )}
+
+                {/* Photo Caption Overlay */}
+                {selectedProject.galleryCaptions && selectedProject.galleryCaptions[activePhotoIdx] && (
+                  <div className="absolute bottom-2 left-2 right-2 bg-slate-950/85 backdrop-blur-md border border-slate-800 text-amber-400 text-xs font-semibold px-3 py-2 rounded-lg text-center shadow-lg">
+                    {selectedProject.galleryCaptions[activePhotoIdx]}
+                  </div>
+                )}
               </div>
 
               {/* Gallery Thumbnails List */}
@@ -627,7 +1025,7 @@ export default function Home() {
                     key={idx}
                     onClick={() => setActivePhotoIdx(idx)}
                     className={`h-12 w-16 shrink-0 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
-                      activePhotoIdx === idx ? 'border-amber-500 scale-105' : 'border-slate-800 opacity-60'
+                      activePhotoIdx === idx ? 'border-amber-500 scale-105 ring-2 ring-amber-500/30' : 'border-slate-800 opacity-60 hover:opacity-100'
                     }`}
                   >
                     <img src={url} alt="" className="w-full h-full object-cover" />
@@ -639,9 +1037,16 @@ export default function Home() {
             {/* Right Column: Project details */}
             <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto flex flex-col space-y-6">
               <div className="space-y-2">
-                <span className="bg-amber-500/10 text-amber-600 text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded">
-                  {selectedProject.tag}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-500/10 text-amber-600 text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded">
+                    {selectedProject.tag}
+                  </span>
+                  {selectedProject.isVerified && (
+                    <span className="bg-emerald-500/10 text-emerald-600 text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded flex items-center gap-1">
+                      <ShieldCheck className="h-3 w-3" /> Verified Rohana Build
+                    </span>
+                  )}
+                </div>
                 <h3 className="text-xl md:text-2xl font-black text-slate-900 leading-tight">{selectedProject.title}</h3>
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">{selectedProject.location}, Sri Lanka</p>
               </div>
@@ -729,71 +1134,714 @@ export default function Home() {
 
             {/* Right Column: Service details */}
             <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto flex flex-col justify-between">
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <div className={`p-1.5 rounded-lg ${selectedService.color}`}>
-                      <selectedService.icon className="h-4 w-4" />
-                    </div>
-                    <span className="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">
-                      Our Specialization
-                    </span>
-                  </div>
-                  <h3 className="text-xl md:text-2xl font-black text-slate-900 leading-tight">{selectedService.name}</h3>
-                </div>
-
-                <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                  {selectedService.description}
-                </p>
-
-                {/* Specs List */}
-                <div className="space-y-3">
-                  <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Technical Standards</h4>
-                  <div className="grid grid-cols-1 gap-2 text-xs">
-                    {Object.entries(selectedService.specs).map(([key, val]) => (
-                      <div key={key} className="flex justify-between py-1.5 border-b border-slate-55 last:border-0">
-                        <span className="text-slate-400 font-medium">{key}</span>
-                        <span className="font-bold text-slate-800 text-right">{val}</span>
+              {selectedService.name === 'Residential Construction' ? (
+                <div className="space-y-5 flex-1 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    {/* Header */}
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <div className={`p-1.5 rounded-lg ${selectedService.color}`}>
+                          <selectedService.icon className="h-4 w-4" />
+                        </div>
+                        <span className="text-amber-700 text-[10px] font-black uppercase tracking-widest bg-amber-500/10 px-2 py-0.5 rounded">
+                          Flagship Core Service (නිවාස ඉදිකිරීම්)
+                        </span>
                       </div>
-                    ))}
+                      <h3 className="text-xl md:text-2xl font-black text-slate-900 leading-tight">Residential Construction</h3>
+                    </div>
+
+                    {/* Step 1: Upload House Plan */}
+                    <div className="border-2 border-dashed border-amber-400/80 bg-amber-50/60 p-3.5 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                          <UploadCloud className="h-4 w-4 text-amber-600" /> 1. Upload House Plan
+                        </span>
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">Required</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-normal">
+                        Upload your existing house plan blueprint to receive a physical cost estimate.
+                      </p>
+                      <input 
+                        type="file" 
+                        accept=".pdf,.png,.jpg,.jpeg,.dwg" 
+                        onChange={(e) => setUploadedPlanFile(e.target.files[0]?.name || null)}
+                        className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-400 cursor-pointer"
+                      />
+                      {uploadedPlanFile && (
+                        <p className="text-[11px] font-bold text-emerald-700">✓ Blueprint Attached: {uploadedPlanFile}</p>
+                      )}
+                    </div>
+
+                    {/* Step 2: Select Quality */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-black text-slate-900 uppercase tracking-wide">
+                        2. Select Quality Tier
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setModalQualityTier('high')}
+                          className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                            modalQualityTier === 'high'
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-md ring-2 ring-amber-500/30'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          ⭐ High
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setModalQualityTier('medium')}
+                          className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                            modalQualityTier === 'medium'
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-md ring-2 ring-amber-500/30'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          🏷️ Medium
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setModalQualityTier('customize')}
+                          className={`py-2 px-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                            modalQualityTier === 'customize'
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-md ring-2 ring-amber-500/30'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          ⚙️ Customize
+                        </button>
+                      </div>
+
+                      {/* Specs breakdown from handwritten notes */}
+                      <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-xl text-xs space-y-2 max-h-56 overflow-y-auto shadow-inner">
+                        {modalQualityTier === 'high' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between border-b border-amber-200/60 pb-1.5">
+                              <span className="font-black text-amber-800 text-[11px] uppercase tracking-wider">⭐ High Quality (Premium Construction)</span>
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Grade A Luxury</span>
+                            </div>
+                            <ul className="space-y-1.5 text-[11px] text-slate-700 leading-snug">
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-amber-600 font-bold">▪</span>
+                                <div><strong>Tiles & Bathware:</strong> Premium Rocell bathware & Lanka tiles (Porcelain & anti-slip)</div>
+                              </li>
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-amber-600 font-bold">▪</span>
+                                <div><strong>Wood Work:</strong> Seasoned Grade-A Teak, Mahogany, or Jak wood crafted by experienced carpenters</div>
+                              </li>
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-amber-600 font-bold">▪</span>
+                                <div><strong>Electricals:</strong> Certified ACL, Orange, or top quality brand cables & modular switch boards</div>
+                              </li>
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-amber-600 font-bold">▪</span>
+                                <div><strong>Plumbing:</strong> Heavy-duty S-lon pressure pipes & engineered brass fittings</div>
+                              </li>
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-amber-600 font-bold">▪</span>
+                                <div><strong>Painting:</strong> Multi-layer wall putty with Nippon, Dulux WeatherShield, or JAT wood stains</div>
+                              </li>
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-amber-600 font-bold">▪</span>
+                                <div><strong>Masonry & Roofing:</strong> Wire-cut red clay bricks or high-density block stone (as per customer choice), river sand, Melwa / Lanwa TMT steel wire, Tokyo Super / Sanstha cement & quality Rhino Roofing.</div>
+                              </li>
+                            </ul>
+                          </div>
+                        )}
+                        {modalQualityTier === 'medium' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                              <span className="font-black text-slate-900 text-[11px] uppercase tracking-wider">🏷️ Medium Quality (Value Construction)</span>
+                              <span className="text-[10px] font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded">Cost Optimized</span>
+                            </div>
+                            <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
+                              Some non-structural finish items will be optimized to budget options, but overall <strong>structural build quality, foundation strength, and engineering safety will NOT be compromised</strong>.
+                            </p>
+                            <ul className="space-y-1 text-[11px] text-slate-600">
+                              <li>• <strong>Bathware & Tiles:</strong> Standard Lanka Tiles & Cotto sanitaryware</li>
+                              <li>• <strong>Timber:</strong> Kiln-dried Mahogany / Seasoned Hardwood</li>
+                              <li>• <strong>Electricals & Plumbing:</strong> SLS-approved ACL wiring & S-lon plumbing</li>
+                              <li>• <strong>Masonry & Roof:</strong> Concrete block masonry & durable roofing sheets</li>
+                            </ul>
+                          </div>
+                        )}
+                        {modalQualityTier === 'customize' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                              <span className="font-black text-slate-900 text-[11px] uppercase tracking-wider">⚙️ Customized (Tailored Client Specs)</span>
+                              <span className="text-[10px] font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded">100% Bespoke</span>
+                            </div>
+                            <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
+                              Material selection, brand specifications, timber choices, and architectural parameters will depend <strong>100% on your specific budget and personal aesthetic preferences</strong>.
+                            </p>
+                            <p className="text-[10px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200/60 font-semibold">
+                              Direct engineering consultation provided to select each material brand prior to construction kickoff.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Step 3: Request to Estimate */}
+                    <button
+                      type="button"
+                      onClick={handleOpenRequestEstimate}
+                      className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-xl transition-all cursor-pointer text-center text-xs flex items-center justify-center space-x-2 border border-amber-400 shadow-md shadow-amber-500/20 uppercase tracking-wider"
+                    >
+                      <Calculator className="h-4 w-4 text-slate-950" />
+                      <span>3. Request to Estimate & Pay Fee</span>
+                    </button>
+
+                    {/* Step 4: Payment Note */}
+                    <div className="bg-amber-50 border border-amber-200/80 p-2.5 rounded-xl text-[11px] text-amber-950 font-medium leading-relaxed">
+                      <strong>Payment Notice:</strong> An official estimation processing payment applies for our engineers to draft and dispatch an official physical cost estimate for your build.
+                    </div>
+                  </div>
+
+                  {/* Step 5: Direct Contact */}
+                  <div className="pt-3 border-t border-slate-100 space-y-2 mt-2">
+                    <p className="text-[11px] text-slate-600 italic font-medium">
+                      "Direct contact and confirm after we provide to your estimate cost for your build."
+                    </p>
+                    <button
+                      onClick={(e) => {
+                        const srv = selectedService;
+                        setSelectedService(null);
+                        handleOpenDirectInquiry(srv, e);
+                      }}
+                      className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl transition-all shadow-md shadow-amber-500/20 cursor-pointer text-center text-xs flex items-center justify-center space-x-2"
+                    >
+                      <PhoneCall className="h-4 w-4" />
+                      <span>Direct Contact & Confirm</span>
+                    </button>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-6 flex-1 flex flex-col justify-between">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <div className={`p-1.5 rounded-lg ${selectedService.color}`}>
+                          <selectedService.icon className="h-4 w-4" />
+                        </div>
+                        <span className="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest">
+                          Our Specialization
+                        </span>
+                      </div>
+                      <h3 className="text-xl md:text-2xl font-black text-slate-900 leading-tight">{selectedService.name}</h3>
+                    </div>
 
-              {/* Action Redirect Call-To-Action */}
-              <div className="pt-6 border-t border-slate-100 mt-6 space-y-3">
-                <button
-                  onClick={() => {
-                    const user = localStorage.getItem('rcms_user');
-                    const serviceName = encodeURIComponent(selectedService.name);
-                    setSelectedService(null);
-                    if (user) {
-                      navigate(`/customer?tab=estimator&service=${serviceName}`);
-                    } else {
-                      navigate(`/login?redirect=service&service=${serviceName}`);
-                    }
-                  }}
-                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3.5 rounded-xl transition-all shadow-md shadow-amber-500/20 cursor-pointer text-center text-sm"
-                >
-                  Get Cost Estimate for {selectedService.name}
-                </button>
-                <button
-                  onClick={() => {
-                    const user = localStorage.getItem('rcms_user');
-                    setSelectedService(null);
-                    if (user) {
-                      navigate('/customer?tab=messages');
-                    } else {
-                      navigate('/login?redirect=messages');
-                    }
-                  }}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition-all cursor-pointer text-center text-xs border border-slate-700"
-                >
-                  Contact Us / Ask a Question
-                </button>
-              </div>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                      {selectedService.description}
+                    </p>
+
+                    {/* Specs List */}
+                    <div className="space-y-3">
+                      <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Technical Standards</h4>
+                      <div className="grid grid-cols-1 gap-2 text-xs">
+                        {Object.entries(selectedService.specs).map(([key, val]) => (
+                          <div key={key} className="flex justify-between py-1.5 border-b border-slate-55 last:border-0">
+                            <span className="text-slate-400 font-medium">{key}</span>
+                            <span className="font-bold text-slate-800 text-right">{val}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Redirect Call-To-Action */}
+                  <div className="pt-6 border-t border-slate-100 mt-6 space-y-2.5">
+                    <button
+                      onClick={(e) => {
+                        const srv = selectedService;
+                        setSelectedService(null);
+                        handleOpenDirectInquiry(srv, e);
+                      }}
+                      className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3.5 rounded-xl transition-all shadow-md shadow-amber-500/20 cursor-pointer text-center text-sm flex items-center justify-center space-x-2"
+                    >
+                      <PhoneCall className="h-4 w-4" />
+                      <span>Direct Contact / Book {selectedService.name}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const user = localStorage.getItem('rcms_user');
+                        const serviceName = encodeURIComponent(selectedService.name);
+                        setSelectedService(null);
+                        if (user) {
+                          navigate(`/customer?tab=estimator&service=${serviceName}`);
+                        } else {
+                          navigate(`/login?redirect=service&service=${serviceName}`);
+                        }
+                      }}
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition-all cursor-pointer text-center text-xs border border-slate-700"
+                    >
+                      Get Cost Estimate in Customer Portal
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ====================== DIRECT SERVICE CONTACT MODAL ====================== */}
+      {directInquiryService && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+          onClick={() => setDirectInquiryService(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 p-6 md:p-8 space-y-6 relative text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setDirectInquiryService(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-900 bg-slate-100 p-2 rounded-full transition-colors cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Header */}
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-amber-500/10 text-amber-600 px-3 py-1 rounded-full flex items-center gap-1">
+                  <PhoneCall className="h-3 w-3" /> Direct Contact
+                </span>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-slate-100 text-slate-600 px-3 py-1 rounded-full">
+                  Rohana Construction
+                </span>
+              </div>
+              <h3 className="text-2xl font-black text-slate-900">
+                Inquire for {directInquiryService.name}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Contact our engineering team directly via phone, WhatsApp, or submit your site details below for a quick callback.
+              </p>
+            </div>
+
+            {/* Direct Quick Buttons */}
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <a
+                href="tel:+94769117398"
+                className="flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-xl text-xs transition-all shadow-md cursor-pointer border border-slate-800"
+              >
+                <Phone className="h-4 w-4 text-amber-400" />
+                <span>Call 076 911 73 98</span>
+              </a>
+              <a
+                href={`https://wa.me/94769117398?text=${encodeURIComponent(`Hello Rohana Construction, I am interested in ${directInquiryService.name} service for my site.`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>WhatsApp Inquiry</span>
+              </a>
+            </div>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-200"></div>
+              <span className="flex-shrink mx-4 text-[10px] uppercase font-bold text-slate-400 tracking-wider">or send direct message</span>
+              <div className="flex-grow border-t border-slate-200"></div>
+            </div>
+
+            {/* Direct Form */}
+            {inquirySuccess ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center space-y-3">
+                <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
+                <h4 className="font-extrabold text-emerald-950 text-base">Inquiry Sent Successfully!</h4>
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  Thank you! Our technical engineer will call you at <span className="font-bold">{inquiryForm.phone}</span> shortly to discuss your <span className="font-bold">{directInquiryService.name}</span> project.
+                </p>
+                <button
+                  onClick={() => setDirectInquiryService(null)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-6 rounded-xl text-xs cursor-pointer transition-all"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleDirectInquirySubmit} className="space-y-4 text-left">
+                {inquiryError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-bold">
+                    {inquiryError}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Your Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={inquiryForm.name}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, name: e.target.value })}
+                    placeholder="e.g. Ruwan Perera"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Phone / WhatsApp Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={inquiryForm.phone}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, phone: e.target.value })}
+                    placeholder="077 123 4567"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Site Location / City</label>
+                  <input
+                    type="text"
+                    value={inquiryForm.location}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, location: e.target.value })}
+                    placeholder="e.g. Maharagama, Colombo"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Work Description / Details</label>
+                  <textarea
+                    rows={3}
+                    value={inquiryForm.details}
+                    onChange={(e) => setInquiryForm({ ...inquiryForm, details: e.target.value })}
+                    placeholder={`Describe your ${directInquiryService.name} requirements (e.g. 1200 sqft slab shuttering / house wiring...)`}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                  ></textarea>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingInquiry}
+                  className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold py-3.5 rounded-xl transition-all shadow-md shadow-amber-500/20 cursor-pointer text-xs uppercase tracking-wider flex items-center justify-center space-x-2"
+                >
+                  <Send className="h-4 w-4" />
+                  <span>{isSubmittingInquiry ? 'Sending Inquiry...' : 'Submit Direct Inquiry'}</span>
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ====================== REQUEST OFFICIAL ESTIMATE & PAYMENT MODAL ====================== */}
+      {isRequestEstimateOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+          onClick={() => setIsRequestEstimateOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl border border-slate-200 p-6 md:p-8 space-y-6 relative text-left my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setIsRequestEstimateOpen(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-900 bg-slate-100 p-2 rounded-full transition-colors cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Header */}
+            <div className="space-y-1.5 border-b border-slate-100 pb-4">
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-700 px-3 py-1 rounded-full flex items-center gap-1">
+                  <Calculator className="h-3.5 w-3.5" /> Official Build Estimate
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                  Processing Fee LKR 1,500.00
+                </span>
+              </div>
+              <h3 className="text-xl md:text-2xl font-black text-slate-900 leading-tight">
+                Request Estimate & Physical Blueprints
+              </h3>
+              <p className="text-xs text-slate-500">
+                Our structural engineers will analyze your blueprint & dispatch an official physical cost estimate.
+              </p>
+            </div>
+
+            {estimateSuccess ? (
+              /* Success Screen */
+              <div className="py-6 text-center space-y-4">
+                <div className="mx-auto w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-10 w-10" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-lg font-black text-slate-900">Estimate Request Submitted!</h4>
+                  <p className="text-xs text-slate-500">
+                    Reference ID: <strong className="text-amber-600">{estimateSuccess.refNo}</strong>
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-xs space-y-2 text-left">
+                  <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                    <span className="text-slate-500">Service:</span>
+                    <span className="font-bold text-slate-900">Residential Construction</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                    <span className="text-slate-500">Selected Quality Tier:</span>
+                    <span className="font-bold text-amber-600">{estimateSuccess.tier}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                    <span className="text-slate-500">Processing Fee Paid:</span>
+                    <span className="font-bold text-emerald-600">{estimateSuccess.amount} ✓</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Payment Summary:</span>
+                    <span className="font-medium text-slate-800 text-right">{estimateSuccess.method}</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Our structural engineering team will review your house plan blueprint and contact you within 24 hours to deliver the official physical estimate & CAD drawings.
+                </p>
+
+                <button
+                  onClick={() => setIsRequestEstimateOpen(false)}
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl text-xs cursor-pointer transition-all"
+                >
+                  Close Window
+                </button>
+              </div>
+            ) : (
+              /* Form View */
+              <form onSubmit={handleEstimateRequestSubmit} className="space-y-4">
+                {estimateError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-xs font-semibold">
+                    {estimateError}
+                  </div>
+                )}
+
+                {/* Step 1: House Specifications Summary */}
+                <div className="bg-amber-50/70 border border-amber-200/80 p-3.5 rounded-2xl space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-black text-amber-900 uppercase tracking-wide">
+                    <span>1. House Specs & Plan Attachment</span>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-200/60 px-2 py-0.5 rounded-full">
+                      Tier: {modalQualityTier.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Land Size (Perches)</label>
+                      <input
+                        type="number"
+                        required
+                        min={1}
+                        value={estimateForm.landSize}
+                        onChange={(e) => setEstimateForm({ ...estimateForm, landSize: parseFloat(e.target.value) || 0 })}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">House Stories</label>
+                      <select
+                        value={estimateForm.houseStories}
+                        onChange={(e) => setEstimateForm({ ...estimateForm, houseStories: e.target.value })}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 cursor-pointer"
+                      >
+                        <option value="single">Single Story</option>
+                        <option value="two">Two Stories</option>
+                        <option value="three">Three Stories</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-slate-700 bg-white/80 p-2.5 rounded-xl border border-amber-200/50 flex items-center justify-between">
+                    <span className="font-semibold">Attached Blueprint:</span>
+                    <span className="font-bold text-amber-700 truncate max-w-[200px]">
+                      {uploadedPlanFile || 'Pending Upload (Can attach file)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Step 2: Customer Contact Info */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-black text-slate-900 uppercase tracking-wide">
+                    2. Your Contact Information
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Full Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={estimateForm.name}
+                        onChange={(e) => setEstimateForm({ ...estimateForm, name: e.target.value })}
+                        placeholder="e.g. Nimal Perera"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Phone / WhatsApp *</label>
+                      <input
+                        type="tel"
+                        required
+                        value={estimateForm.phone}
+                        onChange={(e) => setEstimateForm({ ...estimateForm, phone: e.target.value })}
+                        placeholder="077 123 4567"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Site Address / City</label>
+                    <input
+                      type="text"
+                      value={estimateForm.location}
+                      onChange={(e) => setEstimateForm({ ...estimateForm, location: e.target.value })}
+                      placeholder="e.g. Piliyandala, Colombo"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Step 3: Payment Method Selection */}
+                <div className="space-y-2.5 border-t border-slate-100 pt-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-black text-slate-900 uppercase tracking-wide">
+                      3. Estimation Processing Fee Payment (LKR 1,500.00)
+                    </label>
+                    <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      LKR 1,500.00
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEstimateForm({ ...estimateForm, paymentMethod: 'card' })}
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                        estimateForm.paymentMethod === 'card'
+                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20 text-slate-950 font-bold'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <CreditCard className="h-4 w-4 mx-auto mb-1 text-amber-600" />
+                      <span className="block text-[11px]">Card Payment</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEstimateForm({ ...estimateForm, paymentMethod: 'bank_transfer' })}
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                        estimateForm.paymentMethod === 'bank_transfer'
+                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20 text-slate-950 font-bold'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Building className="h-4 w-4 mx-auto mb-1 text-amber-600" />
+                      <span className="block text-[11px]">Bank Transfer</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEstimateForm({ ...estimateForm, paymentMethod: 'cash' })}
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                        estimateForm.paymentMethod === 'cash'
+                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20 text-slate-950 font-bold'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <DollarSign className="h-4 w-4 mx-auto mb-1 text-amber-600" />
+                      <span className="block text-[11px]">Cash Deposit</span>
+                    </button>
+                  </div>
+
+                  {/* Dynamic Payment Method Input Fields */}
+                  {estimateForm.paymentMethod === 'card' && (
+                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl space-y-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Cardholder Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={estimateForm.cardName}
+                          onChange={(e) => setEstimateForm({ ...estimateForm, cardName: e.target.value })}
+                          placeholder="e.g. NIMAL PERERA"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Card Number *</label>
+                        <input
+                          type="text"
+                          required
+                          maxLength={19}
+                          value={estimateForm.cardNumber}
+                          onChange={(e) => setEstimateForm({ ...estimateForm, cardNumber: e.target.value })}
+                          placeholder="4532 8912 3456 7890"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Expiry Date *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="MM/YY"
+                            maxLength={5}
+                            value={estimateForm.cardExpiry}
+                            onChange={(e) => setEstimateForm({ ...estimateForm, cardExpiry: e.target.value })}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">CVC Code *</label>
+                          <input
+                            type="password"
+                            required
+                            maxLength={4}
+                            placeholder="•••"
+                            value={estimateForm.cardCvc}
+                            onChange={(e) => setEstimateForm({ ...estimateForm, cardCvc: e.target.value })}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {estimateForm.paymentMethod === 'bank_transfer' && (
+                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl space-y-2 text-xs">
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1 text-[11px] text-slate-700">
+                        <span className="font-bold block text-slate-900">Commercial Bank of Ceylon</span>
+                        <div>Account Name: <strong>Rohana Construction (Pvt) Ltd</strong></div>
+                        <div>Account No: <strong>8009214732</strong> (Maharagama Branch)</div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Bank Slip Ref / Deposit ID</label>
+                        <input
+                          type="text"
+                          value={estimateForm.bankRef}
+                          onChange={(e) => setEstimateForm({ ...estimateForm, bankRef: e.target.value })}
+                          placeholder="e.g. CBLK-904128"
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {estimateForm.paymentMethod === 'cash' && (
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-2xl text-xs text-amber-950 font-medium">
+                      💵 You can pay the <strong>LKR 1,500.00</strong> fee in cash directly at our Maharagama office or hand it over to our structural engineer during the initial site visit.
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingEstimate}
+                  className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black py-3.5 rounded-xl transition-all shadow-md shadow-amber-500/20 cursor-pointer text-xs uppercase tracking-wider flex items-center justify-center space-x-2"
+                >
+                  <Send className="h-4 w-4" />
+                  <span>{isSubmittingEstimate ? 'Processing Request & Payment...' : 'Submit Request & Pay Fee (LKR 1,500)'}</span>
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}

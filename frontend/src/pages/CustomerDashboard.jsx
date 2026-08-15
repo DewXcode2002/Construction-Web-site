@@ -29,7 +29,21 @@ export default function CustomerDashboard() {
   const [bedrooms, setBedrooms] = useState(3);
   const [bathrooms, setBathrooms] = useState(2);
   const [selectedMaterials, setSelectedMaterials] = useState([]);
-  const [customPlanUrl, setCustomPlanUrl] = useState('');
+  const [materialTier, setMaterialTier] = useState('high'); // 'high' or 'medium'
+  
+  // Custom Plan & Brand preferences
+  const [planOption, setPlanOption] = useState('upload'); // 'upload', 'request_design', 'template'
+  const [clientPlanUrl, setClientPlanUrl] = useState('');
+  const [materialBrands, setMaterialBrands] = useState({
+    tileBrand: 'Rocell',
+    woodType: 'Teak Wood',
+    sanitarywareBrand: 'Rocell',
+    paintBrand: 'Dulux',
+    electricalBrand: 'Orange Electric'
+  });
+  const [customerNotes, setCustomerNotes] = useState('');
+  const [contactPreference, setContactPreference] = useState('whatsapp');
+
   const [selectedPlanId, setSelectedPlanId] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('Cash Payments');
   const [cardName, setCardName] = useState('');
@@ -38,17 +52,24 @@ export default function CustomerDashboard() {
   const [cardCvc, setCardCvc] = useState('');
   const [isPaying, setIsPaying] = useState(false);
 
+  // Revision Modal State
+  const [revisionModalEst, setRevisionModalEst] = useState(null);
+  const [revisionFeedback, setRevisionFeedback] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+
   // Estimation feedback preview
   const [previewCost, setPreviewCost] = useState(0);
   const [previewDuration, setPreviewDuration] = useState(0);
 
   const ALL_SERVICES = [
-    'Residential Construction', 'Commercial Buildings', 'Renovation',
-    'House Design', 'Structural Engineering', 'Electrical Work',
-    'Plumbing', 'Painting', 'Landscaping'
+    'Residential Construction', 'Electrical Wiring', 'Painting', 'Plumbing',
+    'Carpentry', 'Slab Shuttering (Satalin)', 'Tile Work',
+    'Commercial Buildings', 'Renovation',
+    'House Design', 'Structural Engineering', 'Landscaping'
   ];
 
   const updateDetail = (key, value) => setServiceDetails(prev => ({ ...prev, [key]: value }));
+  const updateBrand = (key, value) => setMaterialBrands(prev => ({ ...prev, [key]: value }));
   const toggleDetailArray = (key, value) => setServiceDetails(prev => {
     const arr = prev[key] || [];
     return { ...prev, [key]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value] };
@@ -86,6 +107,7 @@ export default function CustomerDashboard() {
     const requestedPlan = searchParams.get('plan');
     if (requestedPlan) {
       setSelectedPlanId(parseInt(requestedPlan));
+      setPlanOption('template');
       setActiveTab('estimator');
     }
 
@@ -98,7 +120,8 @@ export default function CustomerDashboard() {
     // Check if query params pre-select a service type for the estimator
     const requestedService = searchParams.get('service');
     if (requestedService) {
-      setServiceType(decodeURIComponent(requestedService));
+      const decodedSvc = decodeURIComponent(requestedService);
+      setServiceType(decodedSvc);
       setServiceDetails({});
       setActiveTab('estimator');
     }
@@ -119,26 +142,23 @@ export default function CustomerDashboard() {
       .then(data => setProjects(data))
       .catch(err => console.error(err));
 
-    // Fetch plans
-    fetch(`${API_URL}/api/customer/plans`)
+    // Fetch house plans
+    fetch(`${API_URL}/api/customer/plans`, { headers })
       .then(res => res.json())
-      .then(data => setPlans(data))
+      .then(data => setHousePlans(data))
       .catch(err => console.error(err));
 
-    // Fetch admin ID dynamically then load messages
+    // Fetch admin id for chat
     fetch(`${API_URL}/api/admin/id`, { headers })
       .then(res => res.json())
       .then(data => {
-        if (data.adminId) {
-          setAdminId(data.adminId);
-          fetchMessages(authToken, data.adminId);
-        }
+        if (data.adminId) setAdminUserId(data.adminId);
       })
-      .catch(() => fetchMessages(authToken, 1));
+      .catch(err => console.error(err));
   };
 
   const fetchMessages = async (authToken, targetAdminId) => {
-    const id = targetAdminId || adminId;
+    const id = targetAdminId || adminUserId;
     fetch(`${API_URL}/api/messages/${id}`, {
       headers: { 'Authorization': `Bearer ${authToken}` }
     })
@@ -166,10 +186,10 @@ export default function CustomerDashboard() {
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(() => {
-      fetchMessages(token, adminId);
+      fetchMessages(token, adminUserId);
     }, 5000);
     return () => clearInterval(interval);
-  }, [token, adminId]);
+  }, [token, adminUserId]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -178,21 +198,51 @@ export default function CustomerDashboard() {
     }
   }, [chatMessages]);
 
-  // Recalculate preview estimate whenever inputs change
+  // Recalculate cost estimator whenever parameters change
   useEffect(() => {
-    let matMult = 1.0;
-    if (selectedMaterials.includes('Premium Wood')) matMult += 0.15;
-    if (selectedMaterials.includes('Luxury Tiles')) matMult += 0.10;
-    if (selectedMaterials.includes('High-grade Electricals')) matMult += 0.08;
-    if (selectedMaterials.includes('Eco Paint')) matMult += 0.05;
-    const sqFt = parseFloat(landSize || 0) * 272.25;
-    const ls = parseFloat(landSize || 0);
+    const sqFt = landSize * 272; // Convert perches to approximate sqft
+    const matMult = materialTier === 'ultra_premium' ? 1.35 : materialTier === 'premium' ? 1.15 : 1.0;
     let cost = 0, dur = 4;
 
-    if (serviceType === 'Residential Construction') {
-      const hFloor = houseType === 'two' ? 1500000 : houseType === 'three' ? 3500000 : 0;
-      cost = (sqFt * 6500 * matMult) + (bedrooms * 200000) + (bathrooms * 150000) + hFloor;
-      dur = Math.round(sqFt / 100) + 8;
+    if (serviceType === 'Electrical Wiring' || serviceType === 'Electrical Work') {
+      const pts = parseInt(serviceDetails.wiringPoints || 10);
+      const phaseAdd = serviceDetails.phaseType === 'Three Phase' ? 150000 : 0;
+      cost = (pts * 8500 * matMult) + phaseAdd;
+      dur = pts > 30 ? 3 : 1;
+    } else if (serviceType === 'Painting') {
+      const rate = serviceDetails.puttyCoating === 'Yes' ? 350 : 180;
+      cost = (sqFt > 0 ? sqFt : 1000) * rate * matMult;
+      dur = Math.round((sqFt > 0 ? sqFt : 1000) / 500) + 1;
+    } else if (serviceType === 'Plumbing') {
+      const pts = parseInt(serviceDetails.waterPoints || 8);
+      const pipeAdd = serviceDetails.pipeMaterial === 'PPR Hot/Cold' ? 40000 : 0;
+      cost = (pts * 6500 * matMult) + pipeAdd;
+      dur = 2;
+    } else if (serviceType === 'Carpentry') {
+      const scopeMap = {
+        'Solid Teak Main Doors & Windows': 180000,
+        'Modular Pantry Cabinets': 250000,
+        'Roof Timber Framing': 380000,
+        'Decorative Ceiling Woodwork': 120000
+      };
+      const sc = serviceDetails.carpentryScope || 'Solid Teak Main Doors & Windows';
+      cost = (scopeMap[sc] || 180000) * matMult;
+      dur = 3;
+    } else if (serviceType === 'Slab Shuttering (Satalin)' || serviceType === 'Slab Shuttering') {
+      const slabSq = parseFloat(serviceDetails.slabSqFt || 800);
+      const levelMult = serviceDetails.slabLevel === '2nd Floor Slab' ? 1.25 : serviceDetails.slabLevel === '1st Floor Slab' ? 1.15 : 1.0;
+      cost = slabSq * 520 * levelMult * matMult;
+      dur = Math.round(slabSq / 200) + 2;
+    } else if (serviceType === 'Tile Work') {
+      const tileSq = parseFloat(serviceDetails.tileSqFt || 500);
+      const tileTypeMult = serviceDetails.tileType === 'Granite Countertop' ? 2.2 : serviceDetails.tileType === '2x4 ft Large Format Tiles' ? 1.4 : 1.0;
+      cost = tileSq * 340 * tileTypeMult * matMult;
+      dur = Math.round(tileSq / 250) + 1;
+    } else if (serviceType === 'Residential Construction') {
+      const hFloor = houseType === 'three' ? 4500000 : houseType === 'two' ? 2200000 : 0;
+      const tierMult = materialTier === 'medium' ? 0.88 : 1.15;
+      cost = (sqFt * 6500 * matMult * tierMult) + (bedrooms * 200000) + (bathrooms * 150000) + hFloor;
+      dur = Math.round(sqFt / 100) + (houseType === 'three' ? 16 : houseType === 'two' ? 12 : 8);
     } else if (serviceType === 'Commercial Buildings') {
       const hFloor = houseType === 'two' ? 2500000 : houseType === 'three' ? 5500000 : 0;
       cost = (sqFt * 8500 * matMult) + hFloor;
@@ -200,41 +250,28 @@ export default function CustomerDashboard() {
     } else if (serviceType === 'Renovation') {
       const scMap = { 'Kitchen Remodel': 1200000, 'Bathroom Remodel': 450000, 'Room Expansion': 800000, 'Full Office Refit': 2500000 };
       const sc = serviceDetails.renovationScope || 'Kitchen Remodel';
+      const ls = parseFloat(landSize || 0);
       cost = (scMap[sc] || 1200000) * matMult * (1 + ls * 0.1);
       dur = sc === 'Full Office Refit' ? 12 : 6;
     } else if (serviceType === 'House Design') {
       const dMap = { '2D Blueprint': 75000, '3D Rendering': 120000, 'Full CAD Layout & 3D Walkthrough': 250000 };
       const dt = serviceDetails.designType || '2D Blueprint';
-      cost = (dMap[dt] || 75000) + ls * 5000;
+      cost = (dMap[dt] || 75000) + (landSize > 0 ? landSize * 5000 : 0);
       dur = dt.includes('CAD') ? 4 : 2;
     } else if (serviceType === 'Structural Engineering') {
       const tMap = { 'Soil Boring Test': 150000, 'Concrete Column Stress Test': 95000, 'Structural Load Certification': 180000 };
       cost = tMap[serviceDetails.assessmentType] || 150000;
       dur = 2;
-    } else if (serviceType === 'Electrical Work') {
-      const pts = parseInt(serviceDetails.wiringPoints || 10);
-      const phaseAdd = serviceDetails.phaseType === 'Three Phase' ? 150000 : 0;
-      cost = (pts * 8500 * matMult) + phaseAdd;
-      dur = pts > 30 ? 3 : 1;
-    } else if (serviceType === 'Plumbing') {
-      const pts = parseInt(serviceDetails.waterPoints || 8);
-      const pipeAdd = serviceDetails.pipeMaterial === 'PPR Hot/Cold' ? 40000 : 0;
-      cost = (pts * 6500 * matMult) + pipeAdd;
-      dur = 2;
-    } else if (serviceType === 'Painting') {
-      const rate = serviceDetails.puttyCoating === 'Yes' ? 350 : 180;
-      cost = sqFt * rate * matMult;
-      dur = Math.round(sqFt / 500) + 1;
     } else if (serviceType === 'Landscaping') {
       const baseR = serviceDetails.turfType === 'Australian Blue Grass' ? 80000 : 50000;
-      cost = ls * baseR;
+      cost = (landSize > 0 ? landSize : 5) * baseR;
       if ((serviceDetails.features || []).includes('Concrete Paving Stone')) cost += 150000;
       if ((serviceDetails.features || []).includes('Stone Retaining Wall')) cost += 250000;
-      dur = Math.round(ls * 0.5) + 1;
+      dur = Math.round((landSize > 0 ? landSize : 5) * 0.5) + 1;
     }
     setPreviewCost(Math.round(cost));
     setPreviewDuration(dur);
-  }, [serviceType, serviceDetails, landSize, houseType, bedrooms, bathrooms, selectedMaterials]);
+  }, [serviceType, serviceDetails, landSize, houseType, bedrooms, bathrooms, selectedMaterials, materialTier]);
 
   const handleMaterialToggle = (material) => {
     setSelectedMaterials(prev => 
@@ -260,25 +297,35 @@ export default function CustomerDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       
-      setCustomPlanUrl(data.fileUrl);
-      setFileMsg('Plan drawing uploaded successfully!');
+      setClientPlanUrl(data.fileUrl);
+      setFileMsg('Plan file uploaded successfully!');
     } catch (err) {
       setFileMsg('Upload failed: ' + err.message);
     }
   };
 
-  const handleAcceptBudget = async (estId) => {
+  const handleEstimateReply = async (estId, action, feedbackMsg = '') => {
+    setIsSubmittingReply(true);
     try {
-      const res = await fetch(`${API_URL}/api/customer/estimates/${estId}/accept`, {
+      const res = await fetch(`${API_URL}/api/customer/estimates/${estId}/reply`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action, feedbackMessage: feedbackMsg })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      alert('Budget approved successfully! Your active project has been started.');
+      
+      alert(data.message);
+      setRevisionModalEst(null);
+      setRevisionFeedback('');
       fetchData(token);
     } catch (err) {
       alert('Error: ' + err.message);
+    } finally {
+      setIsSubmittingReply(false);
     }
   };
 
@@ -286,6 +333,13 @@ export default function CustomerDashboard() {
     e.preventDefault();
     setEstError('');
     setEstSuccess('');
+
+    if (planOption === 'upload' && !clientPlanUrl) {
+      if (!window.confirm("You chose 'Upload My Land Plan' but haven't uploaded a file. Do you want to submit without a plan file?")) {
+        return;
+      }
+    }
+
     setIsPaying(true);
 
     // Simulate payment gateway checkout verification (1.5 seconds)
@@ -304,19 +358,26 @@ export default function CustomerDashboard() {
             bedrooms,
             bathrooms,
             materials: selectedMaterials,
-            requestedPlanId: selectedPlanId,
+            requestedPlanId: planOption === 'template' ? selectedPlanId : null,
             paymentMethod,
             serviceType,
-            serviceDetails: JSON.stringify(serviceDetails)
+            serviceDetails: JSON.stringify(serviceDetails),
+            planOption,
+            clientPlanUrl,
+            materialBrands,
+            customerNotes,
+            contactPreference
           })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message);
 
-        setEstSuccess(`${serviceType} estimate submitted! Payment of LKR 1,500 processed. Admin will review and respond.`);
+        setEstSuccess(`${serviceType} estimate request submitted! Admin will physically analyze your requirements and dispatch your custom estimate & architectural plan.`);
         fetchData(token);
         setSelectedMaterials([]);
         setSelectedPlanId(null);
+        setClientPlanUrl('');
+        setCustomerNotes('');
         setServiceDetails({});
         setCardName('');
         setCardNumber('');
@@ -327,7 +388,7 @@ export default function CustomerDashboard() {
       } finally {
         setIsPaying(false);
       }
-    }, 1500);
+    }, 1200);
   };
 
   const handleSendMessage = async (e) => {
@@ -447,79 +508,146 @@ export default function CustomerDashboard() {
 
             {/* Estimates list */}
             <div className="bg-white rounded-2xl border border-slate-100 p-6 space-y-4 shadow-sm">
-              <h3 className="font-extrabold text-slate-900 text-base">Your Estimate Inquiries</h3>
+              <h3 className="font-extrabold text-slate-900 text-base">Your Estimate Inquiries & Requests</h3>
               {estimates.length === 0 ? (
                 <p className="text-xs text-slate-400">You haven't requested any estimates yet. Go to the Estimator tab to calculate.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-widest font-bold">
-                        <th className="pb-3">Details</th>
-                        <th className="pb-3">Size (Perches)</th>
-                        <th className="pb-3 text-right">Rough Cost</th>
-                        <th className="pb-3 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {estimates.map((est) => (
-                        <tr key={est.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                          <td className="py-4">
-                            <span className="block font-bold text-slate-900">{est.service_type || 'Residential Construction'}</span>
-                            <span className="block text-[10px] text-slate-400">{est.plan_title || 'Custom request'}</span>
-                            <div className="flex flex-wrap gap-1 items-center mt-1">
-                              <span className="text-[9px] text-amber-600 font-bold">Payment: {est.payment_method}</span>
-                              {est.is_paid === 1 && (
-                                <span className="text-[8px] bg-emerald-55 text-emerald-600 border border-emerald-100 px-1 py-0.5 rounded font-black">
-                                  LKR 1,500 Fee Paid
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 font-semibold text-slate-700">{est.land_size ? `${est.land_size} Perches` : '—'}</td>
-                          <td className="py-4 font-bold text-slate-900 text-right">
-                            LKR {est.cost_estimate ? est.cost_estimate.toLocaleString() : 'Calculating...'}
-                          </td>
-                          <td className="py-4 text-center space-y-1.5">
-                            <div>
-                              <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
+                <div className="space-y-4">
+                  {estimates.map((est) => {
+                    let parsedBrands = {};
+                    try { parsedBrands = JSON.parse(est.material_brands || '{}'); } catch(e){}
+
+                    return (
+                      <div key={est.id} className="border border-slate-100 rounded-2xl p-5 hover:bg-slate-50 transition-colors space-y-3">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                          <div>
+                            <div className="flex items-center space-x-2">
+                              <span className="font-extrabold text-slate-900 text-sm">{est.service_type || 'Residential Construction'}</span>
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
                                 est.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
                                 est.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                est.status === 'revision_requested' ? 'bg-purple-100 text-purple-800' :
                                 est.status === 'budgeted' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
                               }`}>
-                                {est.status}
+                                {est.status === 'pending' ? 'Pending Physical Estimate' :
+                                 est.status === 'budgeted' ? 'Estimate & Plan Ready' :
+                                 est.status === 'revision_requested' ? 'Revision Requested' :
+                                 est.status === 'approved' ? 'Approved / Active Project' : est.status}
                               </span>
                             </div>
+                            <span className="text-[11px] text-slate-400 block mt-0.5">
+                              Plan Choice: <strong className="text-slate-700 capitalize">{est.plan_option === 'upload' ? 'Customer Uploaded Plan' : est.plan_option === 'request_design' ? 'Requested Rohana Plan Design' : 'Template Plan'}</strong>
+                            </span>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="block text-[10px] text-slate-400 font-bold uppercase">Estimated Cost</span>
+                            <span className="text-sm font-black text-slate-900">
+                              LKR {est.cost_estimate ? est.cost_estimate.toLocaleString() : 'Calculating...'}
+                            </span>
+                            {est.duration_weeks && <span className="text-[10px] text-amber-600 font-bold block">{est.duration_weeks} Weeks Build Time</span>}
+                          </div>
+                        </div>
+
+                        {/* Customer preferences details */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-slate-600 bg-slate-50/80 p-3 rounded-xl">
+                          <div><span className="text-slate-400 text-[9px] font-bold uppercase block">Land Size:</span> {est.land_size ? `${est.land_size} Perches` : 'N/A'}</div>
+                          <div><span className="text-slate-400 text-[9px] font-bold uppercase block">Target Budget:</span> LKR {est.budget ? est.budget.toLocaleString() : 'N/A'}</div>
+                          <div><span className="text-slate-400 text-[9px] font-bold uppercase block">Tile Brand:</span> {parsedBrands.tileBrand || 'Rocell'}</div>
+                          <div><span className="text-slate-400 text-[9px] font-bold uppercase block">Wood Type:</span> {parsedBrands.woodType || 'Teak Wood'}</div>
+                        </div>
+
+                        {/* Documents & Admin feedback notes */}
+                        {est.admin_breakdown && (
+                          <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl text-xs space-y-1">
+                            <span className="text-[9px] text-amber-700 font-bold uppercase tracking-wider block">Admin Physical Estimate Breakdown:</span>
+                            <p className="text-slate-800 text-[11px] leading-relaxed whitespace-pre-line">{est.admin_breakdown}</p>
+                          </div>
+                        )}
+
+                        {est.customer_feedback && (
+                          <div className="bg-purple-50 border border-purple-100 p-3 rounded-xl text-xs space-y-1">
+                            <span className="text-[9px] text-purple-700 font-bold uppercase tracking-wider block">Your Feedback / Revision Notes:</span>
+                            <p className="text-purple-900 text-[11px] italic">"{est.customer_feedback}"</p>
+                          </div>
+                        )}
+
+                        {/* Download Links & Actions */}
+                        <div className="flex flex-wrap items-center justify-between pt-2 gap-2 border-t border-slate-100 text-xs">
+                          <div className="flex flex-wrap gap-2 items-center">
+                            {est.client_plan_url && (
+                              <a href={`${API_URL}${est.client_plan_url}`} target="_blank" rel="noreferrer" className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded text-[10px] flex items-center space-x-1">
+                                <span>📄 My Uploaded Plan</span>
+                              </a>
+                            )}
+                            {est.admin_plan_url && (
+                              <a href={`${API_URL}${est.admin_plan_url}`} target="_blank" rel="noreferrer" className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-2.5 py-1 rounded text-[10px] flex items-center space-x-1">
+                                <span>✏️ Rohana Drawn Plan PDF</span>
+                              </a>
+                            )}
                             {est.admin_pdf_url && (
-                              <div className="pt-1">
-                                <a
-                                  href={`${API_URL}${est.admin_pdf_url}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-block text-[9px] bg-slate-900 hover:bg-slate-800 text-white font-bold px-2 py-1 rounded"
-                                >
-                                  Download Budget PDF
-                                </a>
-                              </div>
+                              <a href={`${API_URL}${est.admin_pdf_url}`} target="_blank" rel="noreferrer" className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-2.5 py-1 rounded text-[10px] flex items-center space-x-1">
+                                <span>📊 Physical Estimate PDF</span>
+                              </a>
                             )}
-                            {est.status === 'budgeted' && (
-                              <div className="pt-1">
-                                <button
-                                  onClick={() => handleAcceptBudget(est.id)}
-                                  className="inline-block text-[9px] bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-2 py-1 rounded cursor-pointer"
-                                >
-                                  Accept Budget
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+
+                          {/* Approval / Revision Action Buttons */}
+                          {(est.status === 'budgeted' || est.status === 'revision_requested') && (
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleEstimateReply(est.id, 'accept', 'Satisfied with physical budget')}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shadow-sm"
+                              >
+                                Accept & Start Construction
+                              </button>
+                              <button
+                                onClick={() => { setRevisionModalEst(est); setRevisionFeedback(est.customer_feedback || ''); }}
+                                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shadow-sm"
+                              >
+                                Request Budget Revision
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
+
+            {/* Revision Feedback Modal */}
+            {revisionModalEst && (
+              <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-100">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                    <h3 className="font-extrabold text-slate-900 text-base">Request Budget Revision</h3>
+                    <button onClick={() => setRevisionModalEst(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Specify how you'd like Admin to revise your physical estimate (e.g. changing tile brands, reducing floor count, adjusting fittings quality).
+                  </p>
+                  <textarea
+                    rows={4}
+                    value={revisionFeedback}
+                    onChange={(e) => setRevisionFeedback(e.target.value)}
+                    placeholder="e.g. Can we change tile brand to Rocell Standard and reduce total cost to LKR 14,000,000?"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:border-amber-500"
+                  />
+                  <div className="flex justify-end space-x-2 pt-2">
+                    <button onClick={() => setRevisionModalEst(null)} className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg">Cancel</button>
+                    <button
+                      onClick={() => handleEstimateReply(revisionModalEst.id, 'request_revision', revisionFeedback)}
+                      disabled={isSubmittingReply || !revisionFeedback.trim()}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {isSubmittingReply ? 'Sending...' : 'Send Revision Feedback'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -607,13 +735,46 @@ export default function CustomerDashboard() {
         {/* ESTIMATOR TAB */}
         {activeTab === 'estimator' && (
           <div className="space-y-8">
-            <div className="space-y-2">
-              <h2 className="text-2xl md:text-3xl font-extrabold text-slate-950">Service Cost Estimator</h2>
-              <p className="text-slate-500 text-sm">Select a service, fill in your requirements and get a precise cost estimate.</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-2xl text-white shadow-xl border border-slate-800">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <span className="bg-amber-500 text-slate-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                    Direct Company Contact
+                  </span>
+                  <span className="text-slate-400 text-xs font-semibold">Need urgent help or direct work?</span>
+                </div>
+                <h2 className="text-xl md:text-2xl font-black">Direct Service Booking & Estimator</h2>
+                <p className="text-xs text-slate-300">Contact our site engineers directly for Electrical Wiring, Painting, Plumbing, Carpentry, Slab Shuttering & Tile Work.</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href="tel:+94769117398"
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all shadow-md cursor-pointer"
+                >
+                  <Phone className="h-4 w-4" />
+                  <span>Call 076 911 73 98</span>
+                </a>
+                <a
+                  href={`https://wa.me/94769117398?text=${encodeURIComponent(`Hello Rohana Construction, I am in customer portal looking for ${serviceType} service.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all shadow-md cursor-pointer"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>WhatsApp Inquiry</span>
+                </a>
+                <button
+                  onClick={() => setActiveTab('messages')}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center space-x-1.5 transition-all cursor-pointer"
+                >
+                  <span>Chat With Engineer</span>
+                </button>
+              </div>
             </div>
 
             {/* Service Type Selector Cards */}
-            <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
               {ALL_SERVICES.map(svc => (
                 <button
                   key={svc}
@@ -652,36 +813,132 @@ export default function CustomerDashboard() {
                   <span className="text-base font-extrabold text-slate-900">{serviceType}</span>
                 </div>
 
-                {/* Chosen Plan Indicator */}
-                {selectedPlanId && (
-                  <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex items-center justify-between">
-                    <div>
-                      <span className="block text-[10px] text-blue-600 uppercase font-bold tracking-wider">Selected House Plan Template</span>
-                      <span className="text-xs text-slate-800 font-extrabold">
-                        {plans.find(p => p.id === selectedPlanId)?.title || 'Selected Design'}
-                      </span>
-                    </div>
-                    <button type="button" onClick={() => setSelectedPlanId(null)} className="text-xs text-red-500 hover:underline cursor-pointer">
-                      Clear
+                {/* STEP 1: ARCHITECTURAL PLAN OPTIONS */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-extrabold text-slate-900 uppercase tracking-wider">1. Architectural Land Plan Option</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPlanOption('upload')}
+                      className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
+                        planOption === 'upload'
+                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
+                          : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold text-slate-900">📄 Upload My Land Plan</span>
+                      <span className="block text-[10px] text-slate-500">I have my land plan drawing & want physical estimation.</span>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPlanOption('request_design')}
+                      className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
+                        planOption === 'request_design'
+                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
+                          : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold text-slate-900">✏️ Request Plan Design</span>
+                      <span className="block text-[10px] text-slate-500">I don't have a plan — Rohana team will draw & estimate.</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPlanOption('template')}
+                      className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
+                        planOption === 'template'
+                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
+                          : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold text-slate-900">🏛️ Pick Template Plan</span>
+                      <span className="block text-[10px] text-slate-500">Select one of Rohana's pre-designed house plans.</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Plan Upload Field if planOption === 'upload' */}
+                {planOption === 'upload' && (
+                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">Upload Your Land Plan Drawing (PDF / Image)</label>
+                    <div className="flex items-center space-x-3">
+                      <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFileUpload} className="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-800 file:cursor-pointer" />
+                      {clientPlanUrl && <span className="text-[10px] text-emerald-600 font-bold">✔ Uploaded</span>}
+                    </div>
+                    {fileMsg && <span className="block text-[10px] text-emerald-600 font-bold">{fileMsg}</span>}
+                  </div>
+                )}
+
+                {/* Template Selection if planOption === 'template' */}
+                {planOption === 'template' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Select House Plan Template</label>
+                    <select
+                      value={selectedPlanId || ''}
+                      onChange={e => setSelectedPlanId(e.target.value ? parseInt(e.target.value) : null)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer"
+                    >
+                      <option value="">-- Choose a Pre-drawn House Plan --</option>
+                      {plans.map(p => (
+                        <option key={p.id} value={p.id}>{p.title} ({p.bedrooms} Beds, {p.bathrooms} Baths, {p.floors} Floors) — ~LKR {p.price_estimate?.toLocaleString()}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
                 {/* ====================== RESIDENTIAL CONSTRUCTION FIELDS ====================== */}
                 {serviceType === 'Residential Construction' && (
                   <>
+                    <div className="bg-amber-50 border border-amber-200/70 p-4 rounded-xl space-y-1">
+                      <span className="block text-[10px] font-extrabold text-amber-800 uppercase tracking-wider">⭐ Flagship Core Service (නිවාස ඉදිකිරීම්)</span>
+                      <p className="text-[11px] text-amber-950 leading-relaxed">
+                        Upload your existing House Plan blueprint to receive an official detailed cost estimate from our structural engineers (a small processing payment applies for official estimate drafting).
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Material Quality Grade (High vs Medium Quality)</label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setMaterialTier('high')}
+                          className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all space-y-1 ${
+                            materialTier === 'high'
+                              ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
+                              : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="block text-xs font-bold text-slate-900">⭐ High Quality (Premium Build)</span>
+                          <span className="block text-[10px] text-slate-500 leading-normal">Seasoned Teak Wood (experienced wood craftsmen), Rocell/Lanka Tiles, Concealed Wiring, Rocell/American Standard Bathware, Dulux Paint & Quality Tile Roofing.</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMaterialTier('medium')}
+                          className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all space-y-1 ${
+                            materialTier === 'medium'
+                              ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
+                              : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="block text-xs font-bold text-slate-900">🏷️ Medium Quality (Standard Build)</span>
+                          <span className="block text-[10px] text-slate-500 leading-normal">Selected material items adjusted to optimize overall cost while preserving 100% structural build strength & durability.</span>
+                        </button>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Land Size (Perches)</label>
                       <input type="number" required value={landSize} step="0.1" onChange={e => setLandSize(parseFloat(e.target.value)||0)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800" placeholder="e.g. 10" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">House Type (Floors)</label>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">House Type (Stories)</label>
                       <select value={houseType} onChange={e => setHouseType(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
-                        <option value="single">Single Story</option>
-                        <option value="two">Two Stories</option>
-                        <option value="three">Three Stories</option>
+                        <option value="single">Single Story House</option>
+                        <option value="two">Two-Story Residence</option>
+                        <option value="three">Three-Story Luxury Residence</option>
                       </select>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -891,16 +1148,6 @@ export default function CustomerDashboard() {
                         <option>Yes</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Paint Brand Preference</label>
-                      <select value={serviceDetails.paintBrand||'Dulux'} onChange={e => updateDetail('paintBrand', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
-                        <option>Dulux</option>
-                        <option>Nippon Paint</option>
-                        <option>Jotun</option>
-                        <option>Lanka Wall Coat</option>
-                      </select>
-                    </div>
                   </>
                 )}
 
@@ -938,21 +1185,209 @@ export default function CustomerDashboard() {
                   </>
                 )}
 
-                {/* ===== SHARED FIELDS (Budget + Payment + Materials) ===== */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Your Budget (LKR)</label>
-                  <input type="number" required value={budget} onChange={e => setBudget(parseInt(e.target.value)||0)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800" placeholder="e.g. 6000000" />
+                {/* ====================== CARPENTRY FIELDS ====================== */}
+                {serviceType === 'Carpentry' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Primary Carpentry Work Scope</label>
+                      <select value={serviceDetails.carpentryScope||'Solid Teak Main Doors & Windows'} onChange={e => updateDetail('carpentryScope', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
+                        <option>Solid Teak Main Doors & Windows</option>
+                        <option>Modular Pantry Cabinets</option>
+                        <option>Roof Timber Framing</option>
+                        <option>Decorative Ceiling Woodwork</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Timber Wood Material</label>
+                      <select value={serviceDetails.timberType||'Seasoned Teak Wood'} onChange={e => updateDetail('timberType', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
+                        <option>Seasoned Teak Wood</option>
+                        <option>Mahogany Wood</option>
+                        <option>Kempas Hardwood</option>
+                        <option>Mahogany Plywood Board</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Site Location / Address</label>
+                      <input type="text" value={serviceDetails.siteAddress||''} onChange={e => updateDetail('siteAddress', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800" placeholder="e.g. Maharagama, Colombo" />
+                    </div>
+                  </>
+                )}
+
+                {/* ====================== SLAB SHUTTERING (SATALIN) FIELDS ====================== */}
+                {(serviceType === 'Slab Shuttering (Satalin)' || serviceType === 'Slab Shuttering') && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Slab Area (Square Feet)</label>
+                      <input type="number" required value={serviceDetails.slabSqFt||800} min={100} step={50}
+                        onChange={e => updateDetail('slabSqFt', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800" placeholder="e.g. 1200" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Slab Level</label>
+                      <select value={serviceDetails.slabLevel||'1st Floor Slab'} onChange={e => updateDetail('slabLevel', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
+                        <option>Ground Floor Slab</option>
+                        <option>1st Floor Slab</option>
+                        <option>2nd Floor Slab</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Formwork Material</label>
+                      <select value={serviceDetails.shutteringMat||'Heavy Marine Plywood'} onChange={e => updateDetail('shutteringMat', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
+                        <option>Heavy Marine Plywood</option>
+                        <option>Steel Formwork Props</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {/* ====================== TILE WORK FIELDS ====================== */}
+                {serviceType === 'Tile Work' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Total Tiling Area (Square Feet)</label>
+                      <input type="number" required value={serviceDetails.tileSqFt||500} min={50} step={25}
+                        onChange={e => updateDetail('tileSqFt', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800" placeholder="e.g. 850" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Tile Type & Format</label>
+                      <select value={serviceDetails.tileType||'2x2 ft Porcelain Tiles'} onChange={e => updateDetail('tileType', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
+                        <option>2x2 ft Porcelain Tiles</option>
+                        <option>2x4 ft Large Format Tiles</option>
+                        <option>Anti-Slip Porch & Outdoor Tiles</option>
+                        <option>Granite Countertop</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Surface Location</label>
+                      <select value={serviceDetails.surfaceLoc||'Living & Bedroom Floor'} onChange={e => updateDetail('surfaceLoc', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
+                        <option>Living & Bedroom Floor</option>
+                        <option>Bathroom Walls & Floor</option>
+                        <option>Kitchen Countertop & Splashback</option>
+                        <option>Car Porch & Verandah</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {/* STEP 2: MATERIAL BRANDS & SPECIFICATION PREFERENCES */}
+                <div className="border-t border-slate-100 pt-6 space-y-4">
+                  <label className="block text-xs font-extrabold text-slate-900 uppercase tracking-wider">2. Material Brands & Specifications</label>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tile Brand / Finish</label>
+                      <select value={materialBrands.tileBrand} onChange={e => updateBrand('tileBrand', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                        <option>Rocell Luxury Porcelain</option>
+                        <option>Lanka Tiles Standard</option>
+                        <option>Imported Large Format Tiles</option>
+                        <option>Terrazzo / Granito Finish</option>
+                        <option>Non-Slip Outdoor Tiles</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Wood Species (Doors & Windows)</label>
+                      <select value={materialBrands.woodType} onChange={e => updateBrand('woodType', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                        <option>Teak Wood (Senior Grade)</option>
+                        <option>Mahogany Hardwood</option>
+                        <option>Jak Wood</option>
+                        <option>Nadun / Kumbuk</option>
+                        <option>Treated Timber Frame</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Sanitaryware & Fittings</label>
+                      <select value={materialBrands.sanitarywareBrand} onChange={e => updateBrand('sanitarywareBrand', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                        <option>Rocell Premium Fittings</option>
+                        <option>American Standard</option>
+                        <option>Kohler Luxury Line</option>
+                        <option>Cotto Sanitaryware</option>
+                        <option>Grohe German Brassware</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Paint & Electricals</label>
+                      <select value={materialBrands.paintBrand} onChange={e => updateBrand('paintBrand', e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                        <option>Dulux Paint + Orange Electric</option>
+                        <option>Nippon Paint + ACL Cables</option>
+                        <option>Jotun WeatherShield + Clipsal</option>
+                        <option>Eco Weather Paint + Siemens</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Preferred Payment Method</label>
-                  <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
-                    <option value="Cash Payments">Cash Payments</option>
-                    <option value="Bank Installment Loans">Bank Installment Loans</option>
-                    <option value="Phase-by-Phase Milestones">Phase-by-Phase Milestones</option>
-                  </select>
+                {/* STEP 3: CONTACT METHOD & SPECIAL INSTRUCTIONS */}
+                <div className="border-t border-slate-100 pt-6 space-y-4">
+                  <label className="block text-xs font-extrabold text-slate-900 uppercase tracking-wider">3. Direct Contact & Instructions</label>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-2">How should Admin contact you for physical details?</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'whatsapp', label: '💬 WhatsApp' },
+                        { id: 'phone', label: '📞 Direct Call' },
+                        { id: 'in_app', label: '📩 In-App Inbox' }
+                      ].map(method => (
+                        <button
+                          key={method.id}
+                          type="button"
+                          onClick={() => setContactPreference(method.id)}
+                          className={`py-2 px-3 border rounded-xl text-xs font-bold cursor-pointer transition-all ${
+                            contactPreference === method.id
+                              ? 'bg-amber-500/10 border-amber-500 text-amber-600'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          {method.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Special Requirements / Notes for Engineers</label>
+                    <textarea
+                      rows={3}
+                      value={customerNotes}
+                      onChange={e => setCustomerNotes(e.target.value)}
+                      placeholder="e.g. Please include rooftop terrace framing, double garage layout, and custom mahogany pantry cabinets."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {/* ===== SHARED FIELDS (Budget + Payment) ===== */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-6">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Target Budget (LKR)</label>
+                    <input type="number" required value={budget} onChange={e => setBudget(parseInt(e.target.value)||0)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800" placeholder="e.g. 15000000" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Preferred Payment Method</label>
+                    <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer">
+                      <option value="Cash Payments">Cash Payments</option>
+                      <option value="Bank Installment Loans">Bank Installment Loans</option>
+                      <option value="Phase-by-Phase Milestones">Phase-by-Phase Milestones</option>
+                    </select>
+                  </div>
                 </div>
 
                 {['Residential Construction', 'Commercial Buildings', 'Renovation'].includes(serviceType) && (

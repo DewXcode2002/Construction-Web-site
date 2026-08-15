@@ -110,18 +110,36 @@ function initializeDatabase() {
       materials TEXT NOT NULL, -- comma separated material qualities
       cost_estimate REAL,
       duration_weeks INTEGER,
-      plan_file_url TEXT, -- Client uploaded plan
+      plan_file_url TEXT, -- Client uploaded plan (legacy column)
       requested_plan_id INTEGER, -- Client chosen design
-      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'budgeted', 'approved', 'rejected')),
+      status TEXT NOT NULL DEFAULT 'pending', -- pending, budgeted, revision_requested, approved, rejected
       payment_method TEXT, -- Customer chosen payment method
       admin_pdf_url TEXT, -- Company uploaded PDF budget
       fee_paid REAL DEFAULT 0.0, -- Fee paid for estimate calculation
       is_paid INTEGER DEFAULT 0, -- Payment status (0 = unpaid, 1 = paid)
       service_type TEXT DEFAULT 'Residential Construction', -- Service category
       service_details TEXT, -- JSON string containing service-specific details
+      plan_option TEXT DEFAULT 'template', -- upload, request_design, template
+      client_plan_url TEXT, -- Client uploaded land plan PDF/Image
+      admin_plan_url TEXT, -- Admin drawn/uploaded architectural plan
+      material_brands TEXT, -- JSON string with tile, wood, sanitaryware, paint, electrical brands
+      customer_notes TEXT, -- Special instructions / custom requests
+      contact_preference TEXT DEFAULT 'whatsapp', -- phone, whatsapp, in_app
+      customer_feedback TEXT, -- Customer reply message / revision feedback
+      admin_breakdown TEXT, -- Admin physical estimate cost breakdown notes
       FOREIGN KEY(customer_id) REFERENCES customers(id),
       FOREIGN KEY(requested_plan_id) REFERENCES house_plans(id)
     )`);
+
+    // Migrations for existing databases
+    db.run(`ALTER TABLE estimates ADD COLUMN plan_option TEXT DEFAULT 'template'`, () => {});
+    db.run(`ALTER TABLE estimates ADD COLUMN client_plan_url TEXT`, () => {});
+    db.run(`ALTER TABLE estimates ADD COLUMN admin_plan_url TEXT`, () => {});
+    db.run(`ALTER TABLE estimates ADD COLUMN material_brands TEXT`, () => {});
+    db.run(`ALTER TABLE estimates ADD COLUMN customer_notes TEXT`, () => {});
+    db.run(`ALTER TABLE estimates ADD COLUMN contact_preference TEXT DEFAULT 'whatsapp'`, () => {});
+    db.run(`ALTER TABLE estimates ADD COLUMN customer_feedback TEXT`, () => {});
+    db.run(`ALTER TABLE estimates ADD COLUMN admin_breakdown TEXT`, () => {});
 
     // 7. Attendance Table
     db.run(`CREATE TABLE IF NOT EXISTS attendance (
@@ -159,6 +177,19 @@ function initializeDatabase() {
     )`);
     // Add is_read column if it doesn't exist (migration for existing DBs)
     db.run(`ALTER TABLE messages ADD COLUMN is_read INTEGER DEFAULT 0`, () => {});
+
+    // 10. Direct Service Inquiries Table
+    db.run(`CREATE TABLE IF NOT EXISTS inquiries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      location TEXT,
+      service_type TEXT NOT NULL,
+      details TEXT NOT NULL,
+      contact_time TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
 
     // Seed default data
     seedDefaultData();

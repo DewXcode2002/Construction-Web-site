@@ -20,6 +20,7 @@ export default function AdminDashboard() {
   const [metrics, setMetrics] = useState({ customers: 0, pendingEmployees: 0, activeEmployees: 0, activeProjects: 0, completedProjects: 0, pendingEstimates: 0 });
   const [employees, setEmployees] = useState([]);
   const [estimates, setEstimates] = useState([]);
+  const [inquiries, setInquiries] = useState([]);
   const [projects, setProjects] = useState([]);
   const [chats, setChats] = useState([]);
   const [selectedChatUser, setSelectedChatUser] = useState(null);
@@ -31,6 +32,8 @@ export default function AdminDashboard() {
   const [msgInput, setMsgInput] = useState('');
   const [assignedWorkers, setAssignedWorkers] = useState({});
   const [uploadFiles, setUploadFiles] = useState({});
+  const [uploadPlanFiles, setUploadPlanFiles] = useState({});
+  const [adminBreakdowns, setAdminBreakdowns] = useState({});
   const [adjustedWeeks, setAdjustedWeeks] = useState({});
   const chatEndRef = useRef(null);
 
@@ -76,6 +79,12 @@ export default function AdminDashboard() {
       .then(data => setEstimates(data))
       .catch(err => console.error(err));
 
+    // Direct Service Inquiries
+    fetch(`${API_URL}/api/admin/inquiries`, { headers })
+      .then(res => res.json())
+      .then(data => setInquiries(Array.isArray(data) ? data : []))
+      .catch(err => console.error(err));
+
     // Projects
     fetch(`${API_URL}/api/admin/projects`, { headers })
       .then(res => res.json())
@@ -95,6 +104,32 @@ export default function AdminDashboard() {
       .then(res => res.json())
       .then(data => setChats(data))
       .catch(err => console.error(err));
+  };
+
+  const handleDeleteInquiry = async (inqId) => {
+    if (!window.confirm('Delete this inquiry?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/admin/inquiries/${inqId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) fetchAllData(token);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Direct Contact Helpers
+  const handleOpenWhatsApp = (phoneStr) => {
+    if (!phoneStr) return alert('No phone number registered for customer.');
+    const cleanNumber = phoneStr.replace(/[^0-9]/g, '');
+    const formatted = cleanNumber.startsWith('0') ? '94' + cleanNumber.slice(1) : cleanNumber;
+    window.open(`https://wa.me/${formatted}?text=Hello,%20this%20is%20Rohana%20Construction%20regarding%20your%20building%20estimate%20request.`, '_blank');
+  };
+
+  const handleOpenInAppChat = (userId, username, fullName) => {
+    setSelectedChatUser({ id: userId, username, display_name: fullName || username });
+    setActiveTab('messages');
   };
 
   // Fetch messages for selected user
@@ -162,42 +197,38 @@ export default function AdminDashboard() {
     }
   };
 
-  const handlePdfUpload = async (estId) => {
-    const file = uploadFiles[estId];
-    if (!file) {
-      alert('Please select a PDF file first.');
-      return;
-    }
+  const handleCustomEstimateUpload = async (estId) => {
+    const pdfFile = uploadFiles[estId];
+    const planFile = uploadPlanFiles[estId];
     const cost = adjustedCost[estId] || '';
     const weeks = adjustedWeeks[estId] || '';
+    const breakdown = adminBreakdowns[estId] || '';
+
+    if (!pdfFile && !planFile && !cost) {
+      alert('Please enter cost estimate or select a file to dispatch.');
+      return;
+    }
 
     const formData = new FormData();
-    formData.append('pdfFile', file);
+    if (pdfFile) formData.append('pdfFile', pdfFile);
+    if (planFile) formData.append('planFile', planFile);
     if (cost) formData.append('costEstimate', cost);
     if (weeks) formData.append('durationWeeks', weeks);
+    if (breakdown) formData.append('adminBreakdown', breakdown);
 
     try {
-      const res = await fetch(`${API_URL}/api/admin/estimates/${estId}/upload-pdf`, {
+      const res = await fetch(`${API_URL}/api/admin/estimates/${estId}/custom-estimate`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       
-      alert('Budget PDF successfully uploaded and estimate sent to client!');
+      alert('Physical Estimate & Architectural Plan successfully sent to client!');
       fetchAllData(token);
-      
-      // Reset files
-      setUploadFiles(prev => {
-        const copy = { ...prev };
-        delete copy[estId];
-        return copy;
-      });
     } catch (err) {
-      alert('Error uploading PDF: ' + err.message);
+      alert('Error uploading estimate: ' + err.message);
     }
   };
 
@@ -400,138 +431,297 @@ export default function AdminDashboard() {
         {activeTab === 'estimates' && (
           <div className="space-y-8">
             <div className="space-y-2">
-              <h2 className="text-2xl md:text-3xl font-extrabold text-slate-950">Estimates & Inquiries</h2>
-              <p className="text-slate-500 text-sm">Review build parameters submitted by customer portal, adjust pricing, and approve them to spawn active projects.</p>
+              <h2 className="text-2xl md:text-3xl font-extrabold text-slate-950">Estimates & Direct Service Inquiries</h2>
+              <p className="text-slate-500 text-sm">Manage direct customer inquiries and formal estimate requests submitted through the portal and main website.</p>
             </div>
 
-            {estimates.length === 0 ? (
-              <p className="text-xs text-slate-400 bg-white p-6 border rounded-2xl">No estimate requests received yet.</p>
-            ) : (
-              <div className="space-y-6">
-                {estimates.map((est) => (
-                  <div key={est.id} className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <div>
-                        <span className="block text-slate-900 font-extrabold text-sm">{est.service_type || 'Residential Construction'}</span>
-                        <span className="block text-[10px] text-slate-400">Client: {est.customer_name} | Phone: {est.phone}</span>
-                      </div>
-                      <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        est.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
-                        est.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                        est.status === 'budgeted' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {est.status}
-                      </span>
-                    </div>
+            {/* DIRECT SERVICE INQUIRIES FROM WEBSITE / PORTAL */}
+            {inquiries.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <span className="bg-amber-500 text-slate-950 text-xs font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                    {inquiries.length} Direct Inquiries
+                  </span>
+                  <h3 className="text-lg font-bold text-slate-900">Direct Customer Inquiries</h3>
+                </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-xs text-slate-500">
-                      <div>
-                        <span className="block text-slate-400 font-bold uppercase text-[9px]">Service</span>
-                        <span className="font-semibold text-slate-700">{est.service_type || 'Construction'}</span>
-                      </div>
-                      <div>
-                        <span className="block text-slate-400 font-bold uppercase text-[9px]">Land / Area</span>
-                        {est.land_size ? `${est.land_size} Perches` : 'N/A'}
-                      </div>
-                      <div>
-                        <span className="block text-slate-400 font-bold uppercase text-[9px]">Materials</span>
-                        {est.materials || 'Standard'}
-                      </div>
-                      <div>
-                        <span className="block text-slate-400 font-bold uppercase text-[9px]">Calculated Cost</span>
-                        LKR {est.cost_estimate ? est.cost_estimate.toLocaleString() : 'N/A'}
-                      </div>
-                      <div>
-                        <span className="block text-slate-400 font-bold uppercase text-[9px]">Payment Plan</span>
-                        <span className="font-semibold text-slate-700">{est.payment_method}</span>
-                      </div>
-                      <div>
-                        <span className="block text-slate-400 font-bold uppercase text-[9px]">Estimate Fee</span>
-                        {est.is_paid === 1 ? (
-                          <span className="font-black text-emerald-600">LKR {est.fee_paid?.toLocaleString()} Paid</span>
-                        ) : (
-                          <span className="font-bold text-red-500">Unpaid</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {est.plan_file_url && (
-                      <div className="text-xs">
-                        <span className="text-slate-400 font-bold mr-1.5 uppercase text-[9px]">Client blueprint:</span>
-                        <a href={`${API_URL}${est.plan_file_url}`} target="_blank" rel="noreferrer" className="text-amber-500 font-bold hover:underline">
-                          View Customer Plan Drawing
-                        </a>
-                      </div>
-                    )}
-
-                    {est.status === 'pending' && (
-                      <div className="border-t border-slate-100 pt-4 space-y-4">
-                        <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-500">Compile Company Budget & Quotation PDF</span>
-                        
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-                          <div>
-                            <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Finalized Cost (LKR)</label>
-                            <input
-                              type="number"
-                              placeholder={est.cost_estimate}
-                              value={adjustedCost[est.id] || ''}
-                              onChange={(e) => setAdjustedCost({ ...adjustedCost, [est.id]: e.target.value })}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-850 focus:outline-none focus:border-amber-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Time Range (Weeks)</label>
-                            <input
-                              type="number"
-                              placeholder={est.duration_weeks}
-                              value={adjustedWeeks[est.id] || ''}
-                              onChange={(e) => setAdjustedWeeks({ ...adjustedWeeks, [est.id]: e.target.value })}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-850 focus:outline-none focus:border-amber-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-500 font-bold mb-1.5 uppercase">Budget PDF Quotation</label>
-                            <input
-                              type="file"
-                              accept=".pdf"
-                              required
-                              onChange={(e) => setUploadFiles({ ...uploadFiles, [est.id]: e.target.files[0] })}
-                              className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-800 file:cursor-pointer"
-                            />
-                          </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {inquiries.map(inq => (
+                    <div key={inq.id} className="bg-white p-5 rounded-2xl border border-amber-500/20 shadow-md space-y-3 relative">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest bg-amber-500/10 text-amber-600 px-2.5 py-0.5 rounded-full">
+                            {inq.service_type}
+                          </span>
+                          <h4 className="font-extrabold text-slate-900 text-base mt-1">{inq.name}</h4>
+                          <span className="text-xs text-slate-500 font-medium block">Phone: <strong className="text-slate-900">{inq.phone}</strong></span>
                         </div>
+                        <button
+                          onClick={() => handleDeleteInquiry(inq.id)}
+                          className="text-slate-400 hover:text-red-500 text-xs p-1 cursor-pointer transition-colors"
+                          title="Delete Inquiry"
+                        >
+                          ✕
+                        </button>
+                      </div>
 
-                        <div className="flex justify-end space-x-2 pt-2 border-t border-slate-55">
+                      {inq.location && (
+                        <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
+                          📍 <strong>Location:</strong> {inq.location}
+                        </p>
+                      )}
+
+                      {inq.details && (
+                        <p className="text-xs text-slate-700 leading-relaxed font-normal bg-amber-50/50 p-2.5 rounded-lg border border-amber-100">
+                          {inq.details}
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
+                        <span className="text-slate-400 font-medium">Best Contact Time: {inq.contact_time || 'Anytime'}</span>
+                        <div className="flex space-x-2">
                           <button
-                            onClick={() => handlePdfUpload(est.id)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition-colors cursor-pointer flex items-center space-x-1"
+                            onClick={() => handleOpenWhatsApp(inq.phone)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer text-xs flex items-center space-x-1"
                           >
-                            <Check className="h-4 w-4" />
-                            <span>Upload & Send Budget</span>
+                            <span>WhatsApp</span>
                           </button>
-                          <button
-                            onClick={() => handleEstimateAction(est.id, 'rejected')}
-                            className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition-colors cursor-pointer flex items-center space-x-1"
+                          <a
+                            href={`tel:${inq.phone}`}
+                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer text-xs flex items-center space-x-1"
                           >
-                            <X className="h-4 w-4" />
-                            <span>Reject Request</span>
-                          </button>
+                            <span>Call</span>
+                          </a>
                         </div>
                       </div>
-                    )}
-
-                    {est.status === 'budgeted' && (
-                      <div className="border-t border-slate-100 pt-4 flex items-center justify-between text-xs text-slate-500">
-                        <span>📄 Company Budget PDF uploaded. Sent to Mr/Mrs {est.customer_name}.</span>
-                        <a href={`${API_URL}${est.admin_pdf_url}`} target="_blank" rel="noreferrer" className="text-amber-500 font-bold hover:underline">
-                          View Uploaded PDF
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
+
+            <div className="pt-4 space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Detailed Estimates & Blueprints</h3>
+              {estimates.length === 0 ? (
+                <p className="text-xs text-slate-400 bg-white p-6 border rounded-2xl">No estimate requests received yet.</p>
+              ) : (
+                <div className="space-y-6">
+                {estimates.map((est) => {
+                  let parsedBrands = {};
+                  try { parsedBrands = JSON.parse(est.material_brands || '{}'); } catch(e){}
+
+                  return (
+                    <div key={est.id} className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4">
+                      {/* Header */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-slate-900 font-extrabold text-base">{est.service_type || 'Residential Construction'}</span>
+                            <span className={`px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                              est.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                              est.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                              est.status === 'revision_requested' ? 'bg-purple-100 text-purple-800' :
+                              est.status === 'budgeted' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {est.status === 'pending' ? 'Pending Physical Estimation' :
+                               est.status === 'budgeted' ? 'Estimate & Plan Sent' :
+                               est.status === 'revision_requested' ? 'Client Requested Revision' :
+                               est.status === 'approved' ? 'Approved / Active Project' : est.status}
+                            </span>
+                          </div>
+                          <span className="block text-xs text-slate-500 font-medium">Client: <strong>{est.customer_name}</strong> ({est.phone || 'No phone'})</span>
+                        </div>
+
+                        {/* Direct Contact Buttons */}
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handleOpenWhatsApp(est.phone)}
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center space-x-1 shadow-xs"
+                            title="Chat on WhatsApp"
+                          >
+                            <span>💬 WhatsApp Client</span>
+                          </button>
+                          <a
+                            href={`tel:${est.phone}`}
+                            className="bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center space-x-1 shadow-xs"
+                            title="Call Phone"
+                          >
+                            <span>📞 Call</span>
+                          </a>
+                          <button
+                            onClick={() => handleOpenInAppChat(est.customer_id, est.customer_name, est.customer_name)}
+                            className="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center space-x-1 shadow-xs"
+                            title="Send In-App Message"
+                          >
+                            <span>📩 Inbox</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Request Specs Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-slate-50 p-4 rounded-xl text-slate-700">
+                        <div>
+                          <span className="block text-slate-400 font-bold uppercase text-[9px]">Plan Choice</span>
+                          <span className="font-bold text-slate-900 capitalize">
+                            {est.plan_option === 'upload' ? 'Customer Uploaded Plan' :
+                             est.plan_option === 'request_design' ? '✏️ Customer Requested Rohana Plan Design' : 'Template Plan'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-slate-400 font-bold uppercase text-[9px]">Land Size / Area</span>
+                          <span className="font-semibold">{est.land_size ? `${est.land_size} Perches` : 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="block text-slate-400 font-bold uppercase text-[9px]">Client Target Budget</span>
+                          <span className="font-semibold">LKR {est.budget ? est.budget.toLocaleString() : 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="block text-slate-400 font-bold uppercase text-[9px]">Preferred Contact Method</span>
+                          <span className="font-bold text-amber-600 uppercase">{est.contact_preference || 'WhatsApp'}</span>
+                        </div>
+                      </div>
+
+                      {/* Brand Preferences Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-amber-500/5 border border-amber-500/10 p-4 rounded-xl text-slate-700">
+                        <div>
+                          <span className="block text-amber-700 font-bold uppercase text-[9px]">Tile Brand</span>
+                          <span className="font-semibold">{parsedBrands.tileBrand || 'Rocell'}</span>
+                        </div>
+                        <div>
+                          <span className="block text-amber-700 font-bold uppercase text-[9px]">Wood Type</span>
+                          <span className="font-semibold">{parsedBrands.woodType || 'Teak Wood'}</span>
+                        </div>
+                        <div>
+                          <span className="block text-amber-700 font-bold uppercase text-[9px]">Sanitaryware</span>
+                          <span className="font-semibold">{parsedBrands.sanitarywareBrand || 'Rocell'}</span>
+                        </div>
+                        <div>
+                          <span className="block text-amber-700 font-bold uppercase text-[9px]">Paint & Electricals</span>
+                          <span className="font-semibold">{parsedBrands.paintBrand || 'Dulux'}</span>
+                        </div>
+                      </div>
+
+                      {/* Customer Notes */}
+                      {est.customer_notes && (
+                        <div className="bg-slate-100 p-3 rounded-xl text-xs space-y-1">
+                          <span className="text-[9px] text-slate-500 font-bold uppercase block">Customer Special Instructions:</span>
+                          <p className="text-slate-800 text-[11px] leading-relaxed">"{est.customer_notes}"</p>
+                        </div>
+                      )}
+
+                      {/* Customer Revision Feedback */}
+                      {est.customer_feedback && (
+                        <div className="bg-purple-50 border border-purple-200 p-4 rounded-xl text-xs space-y-1">
+                          <span className="text-[9px] text-purple-700 font-bold uppercase tracking-wider block">⚠️ Client Requested Revision Feedback:</span>
+                          <p className="text-purple-950 font-bold text-xs leading-relaxed">"{est.customer_feedback}"</p>
+                        </div>
+                      )}
+
+                      {/* Download Links */}
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {(est.client_plan_url || est.plan_file_url) && (
+                          <a href={`${API_URL}${est.client_plan_url || est.plan_file_url}`} target="_blank" rel="noreferrer" className="text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold text-[11px]">
+                            📄 View Customer Land Plan File
+                          </a>
+                        )}
+                        {est.admin_plan_url && (
+                          <a href={`${API_URL}${est.admin_plan_url}`} target="_blank" rel="noreferrer" className="text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg font-bold text-[11px]">
+                            ✏️ View Rohana Drawn Plan
+                          </a>
+                        )}
+                        {est.admin_pdf_url && (
+                          <a href={`${API_URL}${est.admin_pdf_url}`} target="_blank" rel="noreferrer" className="text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-lg font-bold text-[11px]">
+                            📊 View Physical Estimate PDF
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Admin Custom Physical Estimation Dispatch Form */}
+                      {(est.status === 'pending' || est.status === 'revision_requested' || est.status === 'budgeted') && (
+                        <div className="border-t border-slate-100 pt-4 space-y-4 bg-slate-50/50 p-4 rounded-2xl">
+                          <span className="block text-xs font-extrabold uppercase tracking-wider text-amber-600">
+                            {est.status === 'revision_requested' ? '🔄 Resend Revised Physical Estimate & Plan' : '✍️ Prepare Physical Cost Estimate & Architectural Plan'}
+                          </span>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+                            <div>
+                              <label className="block text-[10px] text-slate-600 font-bold mb-1 uppercase">Physical Cost (LKR)</label>
+                              <input
+                                type="number"
+                                placeholder={est.cost_estimate || 15000000}
+                                value={adjustedCost[est.id] || ''}
+                                onChange={(e) => setAdjustedCost({ ...adjustedCost, [est.id]: e.target.value })}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-850 focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] text-slate-600 font-bold mb-1 uppercase">Timeline (Weeks)</label>
+                              <input
+                                type="number"
+                                placeholder={est.duration_weeks || 16}
+                                value={adjustedWeeks[est.id] || ''}
+                                onChange={(e) => setAdjustedWeeks({ ...adjustedWeeks, [est.id]: e.target.value })}
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-850 focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] text-slate-600 font-bold mb-1 uppercase">Upload Drawn Plan (PDF/Img)</label>
+                              <input
+                                type="file"
+                                accept=".pdf,.png,.jpg,.jpeg"
+                                onChange={(e) => setUploadPlanFiles({ ...uploadPlanFiles, [est.id]: e.target.files[0] })}
+                                className="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-amber-500 file:text-slate-950 hover:file:bg-amber-400 file:cursor-pointer"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[10px] text-slate-600 font-bold mb-1 uppercase">Upload Estimate PDF</label>
+                              <input
+                                type="file"
+                                accept=".pdf"
+                                onChange={(e) => setUploadFiles({ ...uploadFiles, [est.id]: e.target.files[0] })}
+                                className="w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-800 file:cursor-pointer"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] text-slate-600 font-bold mb-1 uppercase">Physical Estimate Breakdown & Finishing Notes</label>
+                            <textarea
+                              rows={3}
+                              value={adminBreakdowns[est.id] || ''}
+                              onChange={(e) => setAdminBreakdowns({ ...adminBreakdowns, [est.id]: e.target.value })}
+                              placeholder="e.g. Foundation & Concrete: LKR 4.5M, Masonry Walls: LKR 3.2M, Rocell Porcelain Tiling: LKR 2.8M, Teak Doors & Windows: LKR 2.5M, Sanitaryware: LKR 1.2M."
+                              className="w-full bg-white border border-slate-200 rounded-lg p-2.5 text-xs text-slate-850 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+
+                          <div className="flex justify-end space-x-2 pt-2 border-t border-slate-200">
+                            <button
+                              onClick={() => handleCustomEstimateUpload(est.id)}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition-colors cursor-pointer flex items-center space-x-1"
+                            >
+                              <Check className="h-4 w-4" />
+                              <span>Dispatch Physical Estimate & Plan</span>
+                            </button>
+                            <button
+                              onClick={() => handleEstimateAction(est.id, 'rejected')}
+                              className="bg-red-600 hover:bg-red-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition-colors cursor-pointer flex items-center space-x-1"
+                            >
+                              <X className="h-4 w-4" />
+                              <span>Reject Request</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            </div>
           </div>
         )}
 

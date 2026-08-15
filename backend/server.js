@@ -161,7 +161,12 @@ app.post('/api/customer/estimates', authenticateToken, async (req, res) => {
     requestedPlanId, 
     paymentMethod,
     serviceType,
-    serviceDetails
+    serviceDetails,
+    planOption,
+    clientPlanUrl,
+    materialBrands,
+    customerNotes,
+    contactPreference
   } = req.body;
 
   try {
@@ -268,22 +273,30 @@ app.post('/api/customer/estimates', authenticateToken, async (req, res) => {
 
     const materialsStr = materialList.join(', ');
     const detailsStr = JSON.stringify(parsedDetails);
+    const brandsStr = typeof materialBrands === 'object' ? JSON.stringify(materialBrands) : (materialBrands || '{}');
 
     const result = await dbRun(
-      `INSERT INTO estimates (customer_id, land_size, budget, house_type, bedrooms, bathrooms, materials, cost_estimate, duration_weeks, requested_plan_id, status, payment_method, fee_paid, is_paid, service_type, service_details)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 1500.0, 1, ?, ?)`,
-      [customer.id, landSize, budget, houseType, bedrooms, bathrooms, materialsStr, cost_estimate, duration_weeks, requestedPlanId || null, paymentMethod || 'Cash Payments', sType, detailsStr]
+      `INSERT INTO estimates (
+        customer_id, land_size, budget, house_type, bedrooms, bathrooms, materials, 
+        cost_estimate, duration_weeks, requested_plan_id, status, payment_method, fee_paid, is_paid, 
+        service_type, service_details, plan_option, client_plan_url, material_brands, customer_notes, contact_preference
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 1500.0, 1, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        customer.id, landSize || 0, budget || 0, houseType || 'single', bedrooms || 0, bathrooms || 0, 
+        materialsStr, cost_estimate, duration_weeks, requestedPlanId || null, paymentMethod || 'Cash Payments', 
+        sType, detailsStr, planOption || 'template', clientPlanUrl || null, brandsStr, customerNotes || '', contactPreference || 'whatsapp'
+      ]
     );
 
     res.status(201).json({ 
-      message: 'Estimate submitted and payment of LKR 1,500 processed successfully!',
+      message: 'Estimate request submitted successfully! Admin will review details and physically calculate your estimate.',
       estimateId: result.id,
       costEstimate: cost_estimate,
       durationWeeks: duration_weeks
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error creating estimate' });
+    res.status(500).json({ message: 'Server error creating estimate request' });
   }
 });
 
@@ -310,7 +323,56 @@ app.get('/api/customer/estimates', authenticateToken, async (req, res) => {
   }
 });
 
-// Upload Company Budget PDF by Admin
+// Admin Upload Custom Physical Estimate PDF & Architectural Plan
+app.post('/api/admin/estimates/:id/custom-estimate', authenticateToken, upload.fields([
+  { name: 'pdfFile', maxCount: 1 },
+  { name: 'planFile', maxCount: 1 }
+]), async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
+  const estId = req.params.id;
+
+  const { costEstimate, durationWeeks, adminBreakdown } = req.body;
+
+  try {
+    let pdfUrl = null;
+    let planUrl = null;
+
+    if (req.files) {
+      if (req.files.pdfFile && req.files.pdfFile[0]) {
+        pdfUrl = `/uploads/${req.files.pdfFile[0].filename}`;
+      }
+      if (req.files.planFile && req.files.planFile[0]) {
+        planUrl = `/uploads/${req.files.planFile[0].filename}`;
+      }
+    }
+
+    const currentEst = await dbGet("SELECT * FROM estimates WHERE id = ?", [estId]);
+    if (!currentEst) return res.status(404).json({ message: 'Estimate request not found' });
+
+    const finalPdfUrl = pdfUrl || currentEst.admin_pdf_url;
+    const finalPlanUrl = planUrl || currentEst.admin_plan_url;
+    const finalCost = costEstimate ? parseFloat(costEstimate) : currentEst.cost_estimate;
+    const finalDuration = durationWeeks ? parseInt(durationWeeks) : currentEst.duration_weeks;
+
+    await dbRun(
+      `UPDATE estimates 
+       SET admin_pdf_url = ?, admin_plan_url = ?, cost_estimate = ?, duration_weeks = ?, admin_breakdown = ?, status = 'budgeted' 
+       WHERE id = ?`,
+      [finalPdfUrl, finalPlanUrl, finalCost, finalDuration, adminBreakdown || '', estId]
+    );
+
+    res.json({ 
+      message: 'Physical estimate & architectural plan successfully dispatched to customer!',
+      pdfUrl: finalPdfUrl,
+      planUrl: finalPlanUrl
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error saving physical estimate' });
+  }
+});
+
+// Legacy Admin Upload Company Budget PDF
 app.post('/api/admin/estimates/:id/upload-pdf', authenticateToken, upload.single('pdfFile'), async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
   const estId = req.params.id;
@@ -340,37 +402,46 @@ app.post('/api/admin/estimates/:id/upload-pdf', authenticateToken, upload.single
   }
 });
 
-// Customer Accept Company Budget PDF (Launches Project)
-app.post('/api/customer/estimates/:id/accept', authenticateToken, async (req, res) => {
+// Customer Reply to Estimate (Accept Budget OR Request Revision)
+app.post('/api/customer/estimates/:id/reply', authenticateToken, async (req, res) => {
   if (req.user.role !== 'customer') return res.status(403).json({ message: 'Unauthorized' });
   const estId = req.params.id;
+  const { action, feedbackMessage } = req.body; // action: 'accept' or 'request_revision'
 
   try {
     const estimate = await dbGet("SELECT * FROM estimates WHERE id = ?", [estId]);
     if (!estimate) return res.status(404).json({ message: 'Estimate not found' });
-    if (estimate.status !== 'budgeted') {
-      return res.status(400).json({ message: 'You can only accept estimates that have a ready company budget PDF' });
+
+    if (action === 'accept') {
+      // Update status to approved
+      await dbRun("UPDATE estimates SET status = 'approved', customer_feedback = ? WHERE id = ?", [feedbackMessage || 'Accepted budget', estId]);
+
+      // Create live building project automatically!
+      const today = new Date().toISOString().split('T')[0];
+      const hType = estimate.house_type || 'Custom';
+      const projectName = `${hType.charAt(0).toUpperCase() + hType.slice(1)} ${estimate.service_type || 'Construction'} Project`;
+      
+      const customer = await dbGet("SELECT address FROM customers WHERE id = ?", [estimate.customer_id]);
+
+      await dbRun(
+        `INSERT INTO projects (name, customer_id, location, status, progress_percent, estimate_cost, start_date) 
+         VALUES (?, ?, ?, 'foundation', 0, ?, ?)`,
+        [projectName, estimate.customer_id, customer ? customer.address : 'Colombo', estimate.cost_estimate, today]
+      );
+
+      res.json({ message: 'Budget accepted successfully! Project construction launched.' });
+    } else if (action === 'request_revision') {
+      if (!feedbackMessage || !feedbackMessage.trim()) {
+        return res.status(400).json({ message: 'Please provide revision feedback details.' });
+      }
+      await dbRun("UPDATE estimates SET status = 'revision_requested', customer_feedback = ? WHERE id = ?", [feedbackMessage.trim(), estId]);
+      res.json({ message: 'Revision request sent to Admin. Admin will review your feedback and update the physical estimate.' });
+    } else {
+      res.status(400).json({ message: 'Invalid action' });
     }
-
-    // Update status to approved
-    await dbRun("UPDATE estimates SET status = 'approved' WHERE id = ?", [estId]);
-
-    // Create live building project automatically!
-    const today = new Date().toISOString().split('T')[0];
-    const projectName = `${estimate.house_type.charAt(0).toUpperCase() + estimate.house_type.slice(1)}-Story House Project`;
-    
-    const customer = await dbGet("SELECT address FROM customers WHERE id = ?", [estimate.customer_id]);
-
-    await dbRun(
-      `INSERT INTO projects (name, customer_id, location, status, progress_percent, estimate_cost, start_date) 
-       VALUES (?, ?, ?, 'foundation', 0, ?, ?)`,
-      [projectName, estimate.customer_id, customer ? customer.address : 'Colombo', estimate.cost_estimate, today]
-    );
-
-    res.json({ message: 'Budget accepted successfully! Project construction launched.' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Server error accepting budget' });
+    res.status(500).json({ message: 'Server error processing estimate reply' });
   }
 });
 
@@ -813,6 +884,73 @@ app.get('/api/messages/unread/count', authenticateToken, async (req, res) => {
     res.json({ count: row.count });
   } catch (error) {
     res.status(500).json({ count: 0 });
+  }
+});
+
+// ====================== DIRECT SERVICE INQUIRIES ENDPOINTS ======================
+
+// Submit a direct service inquiry (Public / Customer)
+app.post('/api/inquiries', async (req, res) => {
+  try {
+    const { name, phone, location, service_type, details, contact_time } = req.body;
+    if (!name || !phone || !service_type) {
+      return res.status(400).json({ message: 'Name, phone number, and service type are required.' });
+    }
+
+    const result = await dbRun(
+      `INSERT INTO inquiries (name, phone, location, service_type, details, contact_time)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [name, phone, location || '', service_type, details || '', contact_time || 'Anytime']
+    );
+
+    res.status(201).json({
+      message: 'Direct inquiry submitted successfully. Our team will contact you shortly!',
+      inquiryId: result.id
+    });
+  } catch (error) {
+    console.error('Error submitting inquiry:', error);
+    res.status(500).json({ message: 'Failed to submit inquiry' });
+  }
+});
+
+// Get all direct service inquiries (Admin only)
+app.get('/api/admin/inquiries', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    const inquiries = await dbAll("SELECT * FROM inquiries ORDER BY created_at DESC");
+    res.json(inquiries);
+  } catch (error) {
+    console.error('Error fetching inquiries:', error);
+    res.status(500).json({ message: 'Failed to load inquiries' });
+  }
+});
+
+// Update inquiry status (Admin only)
+app.patch('/api/admin/inquiries/:id/status', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    const { status } = req.body;
+    await dbRun("UPDATE inquiries SET status = ? WHERE id = ?", [status, req.params.id]);
+    res.json({ message: 'Status updated' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating inquiry status' });
+  }
+});
+
+// Delete an inquiry (Admin only)
+app.delete('/api/admin/inquiries/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    await dbRun("DELETE FROM inquiries WHERE id = ?", [req.params.id]);
+    res.json({ message: 'Inquiry deleted' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting inquiry' });
   }
 });
 
