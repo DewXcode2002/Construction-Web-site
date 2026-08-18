@@ -63,7 +63,7 @@ export default function EmployeeDashboard() {
       headers: { 'Authorization': `Bearer ${authToken}` }
     })
       .then(res => res.json())
-      .then(data => setChatMessages(data))
+      .then(data => setChatMessages(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
   };
 

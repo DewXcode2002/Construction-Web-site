@@ -123,13 +123,13 @@ export default function AdminDashboard() {
     // Employees
     fetch(`${API_URL}/api/admin/employees`, { headers })
       .then(res => res.json())
-      .then(data => setEmployees(data))
+      .then(data => setEmployees(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
 
     // Estimates
     fetch(`${API_URL}/api/admin/estimates`, { headers })
       .then(res => res.json())
-      .then(data => setEstimates(data))
+      .then(data => setEstimates(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
 
     // Direct Service Inquiries
@@ -142,10 +142,11 @@ export default function AdminDashboard() {
     fetch(`${API_URL}/api/admin/projects`, { headers })
       .then(res => res.json())
       .then(data => {
-        setProjects(data);
+        const arr = Array.isArray(data) ? data : [];
+        setProjects(arr);
         // Pre-fill assigned workers mapping
         const workersMap = {};
-        data.forEach(p => {
+        arr.forEach(p => {
           workersMap[p.id] = p.assigned_employees ? p.assigned_employees.split(',').map(Number) : [];
         });
         setAssignedWorkers(workersMap);
@@ -155,7 +156,7 @@ export default function AdminDashboard() {
     // Chats user list
     fetch(`${API_URL}/api/admin/chats`, { headers })
       .then(res => res.json())
-      .then(data => setChats(data))
+      .then(data => setChats(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
 
     // Website Showcase Portfolio Projects
