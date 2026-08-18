@@ -92,9 +92,18 @@ export default function CustomerDashboard() {
       return;
     }
 
-    const u = JSON.parse(storedUser);
-    if (u.role !== 'customer') {
-      navigate('/');
+    let u = null;
+    try {
+      u = JSON.parse(storedUser);
+    } catch(e) {
+      localStorage.removeItem('rcms_token');
+      localStorage.removeItem('rcms_user');
+      navigate('/login');
+      return;
+    }
+
+    if (!u || u.role !== 'customer') {
+      navigate('/login');
       return;
     }
 
@@ -134,19 +143,19 @@ export default function CustomerDashboard() {
     // Fetch estimates
     fetch(`${API_URL}/api/customer/estimates`, { headers })
       .then(res => res.json())
-      .then(data => setEstimates(data))
+      .then(data => setEstimates(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
 
     // Fetch projects
     fetch(`${API_URL}/api/customer/projects`, { headers })
       .then(res => res.json())
-      .then(data => setProjects(data))
+      .then(data => setProjects(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
 
     // Fetch house plans
     fetch(`${API_URL}/api/customer/plans`, { headers })
       .then(res => res.json())
-      .then(data => setHousePlans(data))
+      .then(data => setHousePlans(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
 
     // Fetch admin id for chat
