@@ -155,20 +155,20 @@ export default function CustomerDashboard() {
     // Fetch house plans
     fetch(`${API_URL}/api/customer/plans`, { headers })
       .then(res => res.json())
-      .then(data => setHousePlans(Array.isArray(data) ? data : []))
+      .then(data => setPlans(Array.isArray(data) ? data : []))
       .catch(err => console.error(err));
 
     // Fetch admin id for chat
     fetch(`${API_URL}/api/admin/id`, { headers })
       .then(res => res.json())
       .then(data => {
-        if (data.adminId) setAdminUserId(data.adminId);
+        if (data.adminId) setAdminId(data.adminId);
       })
       .catch(err => console.error(err));
   };
 
   const fetchMessages = async (authToken, targetAdminId) => {
-    const id = targetAdminId || adminUserId;
+    const id = targetAdminId || adminId;
     fetch(`${API_URL}/api/messages/${id}`, {
       headers: { 'Authorization': `Bearer ${authToken}` }
     })
@@ -196,10 +196,10 @@ export default function CustomerDashboard() {
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(() => {
-      fetchMessages(token, adminUserId);
+      fetchMessages(token, adminId);
     }, 5000);
     return () => clearInterval(interval);
-  }, [token, adminUserId]);
+  }, [token, adminId]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
