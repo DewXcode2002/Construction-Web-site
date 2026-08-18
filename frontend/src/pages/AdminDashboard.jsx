@@ -1268,14 +1268,14 @@ export default function AdminDashboard() {
               <p className="text-slate-500 text-sm">Select any customer or worker from the sidebar to view and reply to messages.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden" style={{ height: '560px' }}>
+            <div className="grid grid-cols-1 md:grid-cols-3 bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden" style={{ height: '580px' }}>
               
               {/* Chats User List */}
               <div className="border-r border-slate-100 flex flex-col h-full bg-slate-50/50">
-                <div className="p-4 border-b border-slate-100 font-bold text-slate-900 text-xs uppercase tracking-wider bg-slate-100">
+                <div className="p-4 border-b border-slate-100 font-bold text-slate-900 text-xs uppercase tracking-wider bg-slate-100 shrink-0">
                   All Contacts ({chats.length})
                 </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
                   {chats.length === 0 ? (
                     <p className="text-[10px] text-slate-400 text-center py-6">No registered users yet.</p>
                   ) : (
@@ -1283,22 +1283,22 @@ export default function AdminDashboard() {
                       <button
                         key={chatUser.id}
                         onClick={() => setSelectedChatUser(chatUser)}
-                        className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer ${
+                        className={`w-full text-left p-3 rounded-xl transition-all cursor-pointer shrink-0 ${
                           selectedChatUser?.id === chatUser.id 
-                            ? 'bg-amber-500 text-slate-950' 
-                            : 'hover:bg-slate-100 text-slate-700'
+                            ? 'bg-amber-500 text-slate-950 shadow-sm' 
+                            : 'hover:bg-slate-100 bg-white text-slate-700 border border-slate-100'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2 min-w-0">
-                            <div className={`h-7 w-7 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${
                               selectedChatUser?.id === chatUser.id ? 'bg-slate-900 text-white' : 'bg-amber-500 text-slate-950'
                             }`}>
                               {(chatUser.display_name || chatUser.username).charAt(0).toUpperCase()}
                             </div>
                             <div className="min-w-0">
-                              <span className="text-xs font-extrabold truncate block">{chatUser.display_name || chatUser.username}</span>
-                              <span className={`text-[9px] uppercase font-bold tracking-widest ${
+                              <span className="text-xs font-extrabold truncate block leading-tight">{chatUser.display_name || chatUser.username}</span>
+                              <span className={`text-[9px] uppercase font-bold tracking-widest block ${
                                 selectedChatUser?.id === chatUser.id ? 'text-slate-800' : 'text-slate-400'
                               }`}>{chatUser.role}</span>
                             </div>
@@ -1311,7 +1311,7 @@ export default function AdminDashboard() {
                         </div>
                         {chatUser.last_message && (
                           <p className={`text-[10px] mt-1.5 truncate ${
-                            selectedChatUser?.id === chatUser.id ? 'text-slate-800' : 'text-slate-400'
+                            selectedChatUser?.id === chatUser.id ? 'text-slate-900 font-medium' : 'text-slate-400'
                           }`}>{chatUser.last_message}</p>
                         )}
                       </button>
