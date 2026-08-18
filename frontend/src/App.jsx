@@ -7,6 +7,7 @@ import Auth from './pages/Auth';
 import CustomerDashboard from './pages/CustomerDashboard';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import Careers from './pages/Careers';
 
 function Layout() {
   const location = useLocation();
@@ -18,6 +19,7 @@ function Layout() {
       <div className="flex-grow">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/careers" element={<Careers />} />
           <Route path="/login" element={<Auth />} />
           <Route path="/customer" element={<CustomerDashboard />} />
           <Route path="/employee" element={<EmployeeDashboard />} />

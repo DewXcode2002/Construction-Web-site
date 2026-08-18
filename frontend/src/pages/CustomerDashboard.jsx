@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, Calculator, Sparkles, Send, MessageSquare, ClipboardList, CheckCircle, UploadCloud, AlertCircle, Phone, Mail } from 'lucide-react';
 import API_URL from '../config';
+import BackButton from '../components/BackButton';
 
 export default function CustomerDashboard() {
   const navigate = useNavigate();
@@ -329,6 +330,112 @@ export default function CustomerDashboard() {
     }
   };
 
+  const handlePrintEstimate = (est) => {
+    const printWin = window.open('', '_blank', 'width=850,height=950');
+    if (!printWin) return alert('Please allow popups to download/print receipt PDF.');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Rohana Construction - Official Receipt #${est.id}</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; color: #0f172a; line-height: 1.5; background: #fff; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-b: 3px solid #f59e0b; padding-bottom: 15px; margin-bottom: 25px; }
+            .logo { font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
+            .logo span { color: #f59e0b; }
+            .tagline { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 1px; }
+            .doc-title { text-align: right; }
+            .doc-title h1 { margin: 0; font-size: 18px; text-transform: uppercase; color: #0f172a; }
+            .doc-title p { margin: 2px 0 0 0; font-size: 11px; color: #64748b; font-weight: 600; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+            .box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 12px; font-size: 12px; }
+            .box h3 { margin-top: 0; font-size: 11px; text-transform: uppercase; color: #475569; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+            th, td { border: 1px solid #cbd5e1; padding: 10px 12px; text-align: left; }
+            th { background: #0f172a; color: white; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; }
+            .total { background: #fef3c7; font-weight: 800; font-size: 14px; }
+            .footer { margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 15px; text-align: center; font-size: 10px; color: #94a3b8; }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="logo">ROHANA<span>.</span> CONSTRUCTION</div>
+              <div class="tagline">Official Construction Estimate & Budget Receipt</div>
+            </div>
+            <div class="doc-title">
+              <h1>Cost Estimate</h1>
+              <p>Ref: #EST-${est.id}</p>
+              <p>Issued: ${new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div class="box">
+              <h3>Client Information</h3>
+              <p style="margin:4px 0;"><strong>Customer:</strong> ${user?.full_name || user?.username || 'Valued Client'}</p>
+              <p style="margin:4px 0;"><strong>Phone:</strong> ${user?.phone || 'N/A'}</p>
+              <p style="margin:4px 0;"><strong>Service:</strong> ${est.service_type || 'Residential Construction'}</p>
+            </div>
+            <div class="box">
+              <h3>Estimate Specifications</h3>
+              <p style="margin:4px 0;"><strong>Land Extent:</strong> ${est.land_size} Perches (${Math.round(est.land_size * 272.25)} sq.ft)</p>
+              <p style="margin:4px 0;"><strong>Structure:</strong> ${est.house_type || 'Custom Residence'}</p>
+              <p style="margin:4px 0;"><strong>Status:</strong> ${est.status?.toUpperCase()}</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Description / Specification Item</th>
+                <th>Details / Material Tier</th>
+                <th style="text-align: right;">Amount (LKR)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Calculated Structural & Finish Estimate</td>
+                <td>${est.materials || 'High Quality Materials'}</td>
+                <td style="text-align: right;">LKR ${Number(est.cost_estimate || est.budget).toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td>Estimated Completion Timeline</td>
+                <td>${est.duration_weeks || 16} Weeks</td>
+                <td style="text-align: right;">Included</td>
+              </tr>
+              <tr>
+                <td>Official Engineering Review Fee</td>
+                <td>Paid via ${est.payment_method || 'Card/Bank'}</td>
+                <td style="text-align: right;">LKR ${Number(est.fee_paid || 1500).toLocaleString()}</td>
+              </tr>
+              <tr class="total">
+                <td colspan="2" style="text-align: right;"><strong>Total Estimated Budget:</strong></td>
+                <td style="text-align: right;"><strong>LKR ${Number(est.cost_estimate || est.budget).toLocaleString()}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-top: 30px; font-size: 11px; color: #475569;">
+            <p><strong>Note:</strong> This is an official computer-generated estimate receipt issued by Rohana Construction Management System. Final site inspection will verify foundation and ground conditions.</p>
+          </div>
+
+          <div class="footer">
+            <p>Rohana Construction Management System | Matara Town & Kesbewa | Hotlines: 076 911 73 98 | 041 222 34 56</p>
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); };
+          </script>
+        </body>
+      </html>
+    `;
+    printWin.document.write(html);
+    printWin.document.close();
+  };
+
   const handleSubmitEstimate = async (e) => {
     e.preventDefault();
     setEstError('');
@@ -432,9 +539,12 @@ export default function CustomerDashboard() {
       
       {/* Sidebar Navigation */}
       <aside className="w-full md:w-64 bg-slate-900 text-white shrink-0 border-r border-slate-800 flex flex-col">
-        <div className="p-6 border-b border-slate-800">
-          <span className="block text-xs uppercase tracking-widest text-amber-500 font-semibold mb-1">Customer Area</span>
-          <h2 className="font-bold text-lg text-white leading-tight truncate">{user?.full_name || 'Guest User'}</h2>
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <span className="block text-xs uppercase tracking-widest text-amber-500 font-semibold mb-1">Customer Area</span>
+            <h2 className="font-bold text-lg text-white leading-tight truncate">{user?.full_name || 'Guest User'}</h2>
+          </div>
+          <BackButton variant="subtle" showLabel={false} />
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
@@ -475,6 +585,17 @@ export default function CustomerDashboard() {
 
       {/* Main Content Area */}
       <main className="flex-1 p-6 md:p-10 max-w-5xl">
+        <div className="mb-6 flex items-center justify-between">
+          <BackButton variant="default" />
+          {activeTab !== 'overview' && (
+            <button 
+              onClick={() => setActiveTab('overview')}
+              className="text-xs text-amber-600 hover:text-amber-700 font-semibold underline cursor-pointer"
+            >
+              ← Back to Overview
+            </button>
+          )}
+        </div>
         
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
@@ -590,6 +711,13 @@ export default function CustomerDashboard() {
                                 <span>📊 Physical Estimate PDF</span>
                               </a>
                             )}
+                            <button
+                              onClick={() => handlePrintEstimate(est)}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1 rounded text-[10px] flex items-center space-x-1 cursor-pointer transition-colors shadow-xs"
+                              title="Print or Download Official Receipt PDF"
+                            >
+                              <span>🖨️ Print / Save PDF Receipt</span>
+                            </button>
                           </div>
 
                           {/* Approval / Revision Action Buttons */}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Clock, DollarSign, MapPin, Send, MessageSquare, Briefcase, FileCheck, CheckCircle2, ShieldAlert } from 'lucide-react';
 import API_URL from '../config';
+import BackButton from '../components/BackButton';
 
 export default function EmployeeDashboard() {
   const navigate = useNavigate();
@@ -143,6 +144,9 @@ export default function EmployeeDashboard() {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 pt-28 relative">
         <div className="max-w-md w-full glass-dark p-8 rounded-2xl border border-slate-800 text-center space-y-6">
+          <div className="flex justify-between items-center">
+            <BackButton variant="subtle" />
+          </div>
           <ShieldAlert className="h-16 w-16 text-amber-500 mx-auto" />
           <div className="space-y-2">
             <h2 className="text-xl font-extrabold text-white uppercase tracking-wider">Application Under Review</h2>
@@ -169,10 +173,13 @@ export default function EmployeeDashboard() {
       
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-slate-900 text-white shrink-0 border-r border-slate-800 flex flex-col">
-        <div className="p-6 border-b border-slate-800">
-          <span className="block text-xs uppercase tracking-widest text-amber-500 font-semibold mb-1">Employee Portal</span>
-          <h2 className="font-bold text-lg text-white leading-tight truncate">{employee?.full_name || 'Worker'}</h2>
-          <span className="text-[10px] text-slate-400 capitalize block">{employee?.category}</span>
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+          <div>
+            <span className="block text-xs uppercase tracking-widest text-amber-500 font-semibold mb-1">Employee Portal</span>
+            <h2 className="font-bold text-lg text-white leading-tight truncate">{employee?.full_name || 'Worker'}</h2>
+            <span className="text-[10px] text-slate-400 capitalize block">{employee?.category}</span>
+          </div>
+          <BackButton variant="subtle" showLabel={false} />
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
@@ -200,6 +207,17 @@ export default function EmployeeDashboard() {
 
       {/* Main Panel */}
       <main className="flex-1 p-6 md:p-10 max-w-5xl">
+        <div className="mb-6 flex items-center justify-between">
+          <BackButton variant="default" />
+          {activeTab !== 'attendance' && (
+            <button 
+              onClick={() => setActiveTab('attendance')}
+              className="text-xs text-amber-600 hover:text-amber-700 font-semibold underline cursor-pointer"
+            >
+              ← Back to Attendance
+            </button>
+          )}
+        </div>
         
         {/* ATTENDANCE TAB */}
         {activeTab === 'attendance' && (

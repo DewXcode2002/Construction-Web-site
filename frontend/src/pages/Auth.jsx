@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { User, Mail, Lock, Phone, MapPin, Award, ShieldAlert, KeyRound } from 'lucide-react';
+import { User, Mail, Lock, Phone, MapPin, Award, ShieldAlert, KeyRound, Eye, EyeOff } from 'lucide-react';
 import API_URL from '../config';
+import BackButton from '../components/BackButton';
 
 export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [isLogin, setIsLogin] = useState(true);
   const [role, setRole] = useState('customer'); // customer, employee
+  const [showPassword, setShowPassword] = useState(false);
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
   
   // Form States
   const [username, setUsername] = useState('');
@@ -23,6 +26,14 @@ export default function Auth() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Forgot Password Modal State
+  const [isForgotOpen, setIsForgotOpen] = useState(false);
+  const [forgotUsername, setForgotUsername] = useState('');
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotMsg, setForgotMsg] = useState('');
+  const [isSubmittingForgot, setIsSubmittingForgot] = useState(false);
+
   // Handle redirect queries
   const redirect = searchParams.get('redirect');
   const planId = searchParams.get('id');
@@ -33,6 +44,40 @@ export default function Auth() {
     setError('');
     setSuccess('');
   }, [isLogin]);
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setIsSubmittingForgot(true);
+    setForgotMsg('');
+
+    try {
+      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: forgotUsername,
+          email: forgotEmail,
+          newPassword: forgotNewPassword
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setForgotMsg('✓ ' + data.message);
+        setTimeout(() => {
+          setIsForgotOpen(false);
+          setSuccess('Password updated successfully! Please sign in with your new password.');
+        }, 1500);
+      } else {
+        setForgotMsg(data.message || 'Failed to reset password.');
+      }
+    } catch (err) {
+      console.error(err);
+      setForgotMsg('Server error resetting password.');
+    } finally {
+      setIsSubmittingForgot(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -109,6 +154,11 @@ export default function Auth() {
 
       <div className="relative max-w-md w-full space-y-8 glass-dark p-8 rounded-2xl border border-slate-800 z-10">
         
+        {/* Back Button */}
+        <div className="flex justify-between items-center">
+          <BackButton variant="subtle" />
+        </div>
+
         {/* Title */}
         <div className="text-center space-y-2">
           <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight uppercase">
@@ -238,19 +288,44 @@ export default function Auth() {
 
             {/* Password */}
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Password</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Password</label>
+                {isLogin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotUsername(username);
+                      setForgotEmail('');
+                      setForgotNewPassword('');
+                      setForgotMsg('');
+                      setIsForgotOpen(true);
+                    }}
+                    className="text-[11px] font-bold text-amber-500 hover:text-amber-400 transition-colors cursor-pointer"
+                  >
+                    Forgot Password?
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
                   <Lock className="h-4 w-4" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-amber-500 transition-colors text-white"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-10 py-3 text-sm focus:outline-none focus:border-amber-500 transition-colors text-white"
                   placeholder="••••••••"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  title={showPassword ? 'Hide Password' : 'Show Password'}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
@@ -368,18 +443,101 @@ export default function Auth() {
           </button>
         </form>
 
-        {isLogin && (
-          <div className="text-center pt-2">
-            <button
-              type="button"
-              onClick={() => alert("Please contact Administrator at rohanaconstruction@gmail.com to reset password.")}
-              className="text-xs text-slate-500 hover:text-slate-400 transition-colors cursor-pointer"
-            >
-              Forgot password?
-            </button>
-          </div>
-        )}
       </div>
+
+      {/* RESET PASSWORD MODAL */}
+      {isForgotOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl space-y-6 relative text-white">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <span className="text-[10px] font-extrabold text-amber-500 uppercase tracking-widest block">Account Security</span>
+                <h3 className="text-xl font-black">Reset Your Password</h3>
+              </div>
+              <button 
+                onClick={() => setIsForgotOpen(false)} 
+                className="text-slate-400 hover:text-white p-2 rounded-full cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {forgotMsg && (
+              <div className={`p-3 rounded-xl text-xs font-bold ${
+                forgotMsg.startsWith('✓') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+              }`}>
+                {forgotMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Username *</label>
+                <input
+                  type="text"
+                  required
+                  value={forgotUsername}
+                  onChange={(e) => setForgotUsername(e.target.value)}
+                  placeholder="Enter your username"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Registered Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  placeholder="Enter your account email"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">New Password *</label>
+                <div className="relative">
+                  <input
+                    type={showForgotNewPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={forgotNewPassword}
+                    onChange={(e) => setForgotNewPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    title={showForgotNewPassword ? 'Hide Password' : 'Show Password'}
+                  >
+                    {showForgotNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsForgotOpen(false)}
+                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingForgot}
+                  className="w-1/2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                >
+                  {isSubmittingForgot ? 'Resetting...' : 'Reset Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

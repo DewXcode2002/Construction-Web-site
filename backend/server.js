@@ -23,7 +23,7 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 
-// Multer storage setup
+// Multer storage setup with 5MB limit
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadsDir);
@@ -32,7 +32,10 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + '-' + file.originalname);
   }
 });
-const upload = multer({ storage });
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB Limit per file
+});
 
 app.use(cors());
 app.use(express.json());
@@ -53,7 +56,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // ==========================================
-// AUTHENTICATION ENDPOINTS
+// AUTH ROUTES
 // ==========================================
 
 // Register Route
@@ -61,14 +64,14 @@ app.post('/api/auth/register', async (req, res) => {
   const { username, password, email, role, fullName, phone, address, nic, experience, category } = req.body;
 
   if (!username || !password || !email || !role) {
-    return res.status(400).json({ message: 'All basic fields are required' });
+    return res.status(400).json({ message: 'All required fields must be filled' });
   }
 
   try {
     // Check if user exists
-    const userExists = await dbGet("SELECT id FROM users WHERE username = ? OR email = ?", [username, email]);
-    if (userExists) {
-      return res.status(400).json({ message: 'Username or email already exists' });
+    const existingUser = await dbGet("SELECT * FROM users WHERE username = ? OR email = ?", [username, email]);
+    if (existingUser) {
+      return res.status(400).json({ message: 'Username or email already registered' });
     }
 
     // Hash password
@@ -81,19 +84,16 @@ app.post('/api/auth/register', async (req, res) => {
     );
     const userId = result.id;
 
+    // Create role-specific profile
     if (role === 'customer') {
       await dbRun(
         "INSERT INTO customers (user_id, full_name, phone, address) VALUES (?, ?, ?, ?)",
         [userId, fullName || username, phone || '', address || '']
       );
     } else if (role === 'employee') {
-      if (!nic || !category) {
-        return res.status(400).json({ message: 'NIC and worker category are required for employees' });
-      }
       await dbRun(
-        `INSERT INTO employees (user_id, full_name, phone, address, nic, experience, category, status) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
-        [userId, fullName || username, phone || '', address || '', nic, experience || '1 year', category]
+        "INSERT INTO employees (user_id, full_name, phone, address, nic, experience, category, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')",
+        [userId, fullName || username, phone || '', address || '', nic || 'N/A', experience || '1 year', category || 'Masonry work']
       );
     }
 
@@ -140,6 +140,34 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error during login' });
+  }
+});
+
+// Reset Password Route
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { username, email, newPassword } = req.body;
+
+  if (!username || !email || !newPassword) {
+    return res.status(400).json({ message: 'Username, registered email, and new password are required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+  }
+
+  try {
+    const user = await dbGet("SELECT * FROM users WHERE username = ? AND email = ?", [username, email]);
+    if (!user) {
+      return res.status(404).json({ message: 'User account not found with matching username & email' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await dbRun("UPDATE users SET password = ? WHERE id = ?", [hashedPassword, user.id]);
+
+    res.json({ message: 'Password updated successfully! You can now log in.' });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(500).json({ message: 'Server error resetting password' });
   }
 });
 
@@ -772,6 +800,367 @@ app.post('/api/admin/projects/:id/assign', authenticateToken, async (req, res) =
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error assigning workers' });
+  }
+});
+
+// ==========================================
+// SHOWCASE PROJECTS (WEBSITE PORTFOLIO) API
+// ==========================================
+
+// Public: Get all showcase projects for Home page
+app.get('/api/showcase-projects', async (req, res) => {
+  try {
+    const rows = await dbAll("SELECT * FROM showcase_projects ORDER BY id DESC");
+    const projects = rows.map(r => ({
+      id: r.id.toString(),
+      title: r.title,
+      location: r.location,
+      category: r.category,
+      isVerified: Boolean(r.is_verified),
+      image: r.image_url,
+      tag: r.tag || 'Rohana Completed Build',
+      description: r.description,
+      specs: r.specs ? JSON.parse(r.specs) : {},
+      gallery: r.gallery ? JSON.parse(r.gallery) : [r.image_url],
+      galleryCaptions: r.gallery_captions ? JSON.parse(r.gallery_captions) : []
+    }));
+    res.json(projects);
+  } catch (error) {
+    console.error('Error fetching showcase projects:', error);
+    res.status(500).json({ message: 'Server error fetching showcase projects' });
+  }
+});
+
+// Admin: Get all showcase projects
+app.get('/api/admin/showcase-projects', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
+  try {
+    const rows = await dbAll("SELECT * FROM showcase_projects ORDER BY id DESC");
+    const projects = rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      location: r.location,
+      category: r.category,
+      isVerified: Boolean(r.is_verified),
+      image: r.image_url,
+      tag: r.tag,
+      description: r.description,
+      specs: r.specs ? JSON.parse(r.specs) : {},
+      gallery: r.gallery ? JSON.parse(r.gallery) : [],
+      galleryCaptions: r.gallery_captions ? JSON.parse(r.gallery_captions) : []
+    }));
+    res.json(projects);
+  } catch (error) {
+    console.error('Error fetching admin showcase projects:', error);
+    res.status(500).json({ message: 'Server error fetching showcase projects' });
+  }
+});
+
+// Admin: Add new showcase project (supports cover & gallery file uploads or URLs)
+app.post('/api/admin/showcase-projects', authenticateToken, upload.fields([
+  { name: 'coverImage', maxCount: 1 },
+  { name: 'galleryImages', maxCount: 20 }
+]), async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
+
+  try {
+    const { title, location, category, tag, description, specs, imageUrl, galleryUrls, galleryCaptions } = req.body;
+
+    if (!title || !location || !description) {
+      return res.status(400).json({ message: 'Title, location, and description are required' });
+    }
+
+    let coverPath = imageUrl || '';
+    if (req.files && req.files.coverImage && req.files.coverImage[0]) {
+      coverPath = `/uploads/${req.files.coverImage[0].filename}`;
+    }
+
+    if (!coverPath) {
+      coverPath = 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1200&q=80';
+    }
+
+    let galleryArr = [];
+    if (req.files && req.files.galleryImages && req.files.galleryImages.length > 0) {
+      galleryArr = req.files.galleryImages.map(f => `/uploads/${f.filename}`);
+    } else if (galleryUrls) {
+      try {
+        galleryArr = typeof galleryUrls === 'string' ? JSON.parse(galleryUrls) : galleryUrls;
+      } catch (e) {
+        galleryArr = [coverPath];
+      }
+    } else {
+      galleryArr = [coverPath];
+    }
+
+    let parsedSpecs = {};
+    if (specs) {
+      try {
+        parsedSpecs = typeof specs === 'string' ? JSON.parse(specs) : specs;
+      } catch (e) {
+        parsedSpecs = {};
+      }
+    }
+
+    let parsedCaptions = [];
+    if (galleryCaptions) {
+      try {
+        parsedCaptions = typeof galleryCaptions === 'string' ? JSON.parse(galleryCaptions) : galleryCaptions;
+      } catch (e) {
+        parsedCaptions = [];
+      }
+    }
+
+    const result = await dbRun(
+      `INSERT INTO showcase_projects (title, location, category, is_verified, image_url, tag, description, specs, gallery, gallery_captions)
+       VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`,
+      [
+        title,
+        location,
+        category || 'house',
+        coverPath,
+        tag || 'Rohana Completed Build',
+        description,
+        JSON.stringify(parsedSpecs),
+        JSON.stringify(galleryArr),
+        JSON.stringify(parsedCaptions)
+      ]
+    );
+
+    res.json({ message: 'Showcase project created successfully!', projectId: result.id });
+  } catch (error) {
+    console.error('Error creating showcase project:', error);
+    res.status(500).json({ message: 'Server error creating showcase project' });
+  }
+});
+
+// Admin: Edit existing showcase project
+app.put('/api/admin/showcase-projects/:id', authenticateToken, upload.fields([
+  { name: 'coverImage', maxCount: 1 },
+  { name: 'galleryImages', maxCount: 20 }
+]), async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
+  const projId = req.params.id;
+
+  try {
+    const existing = await dbGet("SELECT * FROM showcase_projects WHERE id = ?", [projId]);
+    if (!existing) return res.status(404).json({ message: 'Project not found' });
+
+    const { title, location, category, tag, description, specs, imageUrl, galleryUrls, galleryCaptions } = req.body;
+
+    let coverPath = existing.image_url;
+    if (req.files && req.files.coverImage && req.files.coverImage[0]) {
+      coverPath = `/uploads/${req.files.coverImage[0].filename}`;
+    } else if (imageUrl) {
+      coverPath = imageUrl;
+    }
+
+    let galleryArr = existing.gallery ? JSON.parse(existing.gallery) : [];
+    if (req.files && req.files.galleryImages && req.files.galleryImages.length > 0) {
+      const newFiles = req.files.galleryImages.map(f => `/uploads/${f.filename}`);
+      galleryArr = [...galleryArr, ...newFiles];
+    } else if (galleryUrls) {
+      try {
+        galleryArr = typeof galleryUrls === 'string' ? JSON.parse(galleryUrls) : galleryUrls;
+      } catch (e) {}
+    }
+
+    let parsedSpecs = existing.specs ? JSON.parse(existing.specs) : {};
+    if (specs) {
+      try {
+        parsedSpecs = typeof specs === 'string' ? JSON.parse(specs) : specs;
+      } catch (e) {}
+    }
+
+    let parsedCaptions = existing.gallery_captions ? JSON.parse(existing.gallery_captions) : [];
+    if (galleryCaptions) {
+      try {
+        parsedCaptions = typeof galleryCaptions === 'string' ? JSON.parse(galleryCaptions) : galleryCaptions;
+      } catch (e) {}
+    }
+
+    await dbRun(
+      `UPDATE showcase_projects 
+       SET title = ?, location = ?, category = ?, image_url = ?, tag = ?, description = ?, specs = ?, gallery = ?, gallery_captions = ?
+       WHERE id = ?`,
+      [
+        title || existing.title,
+        location || existing.location,
+        category || existing.category,
+        coverPath,
+        tag || existing.tag,
+        description || existing.description,
+        JSON.stringify(parsedSpecs),
+        JSON.stringify(galleryArr),
+        JSON.stringify(parsedCaptions),
+        projId
+      ]
+    );
+
+    res.json({ message: 'Showcase project updated successfully!' });
+  } catch (error) {
+    console.error('Error updating showcase project:', error);
+    res.status(500).json({ message: 'Server error updating showcase project' });
+  }
+});
+
+// Admin: Delete showcase project
+app.delete('/api/admin/showcase-projects/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
+  const projId = req.params.id;
+
+  try {
+    await dbRun("DELETE FROM showcase_projects WHERE id = ?", [projId]);
+    res.json({ message: 'Showcase project deleted successfully!' });
+  } catch (error) {
+    console.error('Error deleting showcase project:', error);
+    res.status(500).json({ message: 'Server error deleting showcase project' });
+  }
+});
+
+// ==========================================
+// HOUSES & PROPERTIES FOR SALE API
+// ==========================================
+
+// Public: Get all houses for sale
+app.get('/api/properties-for-sale', async (req, res) => {
+  try {
+    const rows = await dbAll("SELECT * FROM houses_for_sale ORDER BY id DESC");
+    const parsed = rows.map(r => {
+      let galleryArr = [r.image_url];
+      try {
+        if (r.gallery) galleryArr = JSON.parse(r.gallery);
+      } catch (e) {}
+      return { ...r, gallery: galleryArr };
+    });
+    res.json(parsed);
+  } catch (error) {
+    console.error('Error fetching houses for sale:', error);
+    res.status(500).json({ message: 'Server error fetching houses for sale' });
+  }
+});
+
+// Admin: Add new house for sale
+app.post('/api/admin/properties-for-sale', authenticateToken, upload.fields([
+  { name: 'coverFile', maxCount: 1 },
+  { name: 'galleryFiles', maxCount: 10 }
+]), async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
+
+  const { title, location, price, perches, bedrooms, bathrooms, stories, description, imageUrl, contactPhone, status } = req.body;
+
+  if (!title || !location || !price) {
+    return res.status(400).json({ message: 'Title, location, and price are required' });
+  }
+
+  let coverPath = imageUrl || '/images/rohana-completed-house/house1.jpg';
+  if (req.files && req.files.coverFile && req.files.coverFile[0]) {
+    coverPath = `/uploads/${req.files.coverFile[0].filename}`;
+  }
+
+  let galleryArr = [coverPath];
+  if (req.files && req.files.galleryFiles) {
+    req.files.galleryFiles.forEach(f => {
+      galleryArr.push(`/uploads/${f.filename}`);
+    });
+  }
+
+  try {
+    const result = await dbRun(
+      `INSERT INTO houses_for_sale (title, location, price, perches, bedrooms, bathrooms, stories, description, image_url, gallery, contact_phone, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        title,
+        location,
+        parseFloat(price) || 0,
+        parseFloat(perches) || 10,
+        parseInt(bedrooms) || 3,
+        parseInt(bathrooms) || 2,
+        stories || 'Two Stories',
+        description || '',
+        coverPath,
+        JSON.stringify(galleryArr),
+        contactPhone || '076 911 73 98',
+        status || 'available'
+      ]
+    );
+
+    res.status(201).json({ message: 'Property listing created successfully!', id: result.id });
+  } catch (error) {
+    console.error('Error creating property listing:', error);
+    res.status(500).json({ message: 'Server error creating property listing' });
+  }
+});
+
+// Admin: Update house for sale / toggle status
+app.put('/api/admin/properties-for-sale/:id', authenticateToken, upload.fields([
+  { name: 'coverFile', maxCount: 1 },
+  { name: 'galleryFiles', maxCount: 10 }
+]), async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
+  const propId = req.params.id;
+
+  try {
+    const existing = await dbGet("SELECT * FROM houses_for_sale WHERE id = ?", [propId]);
+    if (!existing) return res.status(404).json({ message: 'Property not found' });
+
+    const { title, location, price, perches, bedrooms, bathrooms, stories, description, imageUrl, contactPhone, status } = req.body;
+
+    let coverPath = existing.image_url;
+    if (req.files && req.files.coverFile && req.files.coverFile[0]) {
+      coverPath = `/uploads/${req.files.coverFile[0].filename}`;
+    } else if (imageUrl) {
+      coverPath = imageUrl;
+    }
+
+    let galleryArr = [];
+    try {
+      if (existing.gallery) galleryArr = JSON.parse(existing.gallery);
+    } catch (e) {}
+
+    if (req.files && req.files.galleryFiles && req.files.galleryFiles.length > 0) {
+      galleryArr = [coverPath];
+      req.files.galleryFiles.forEach(f => galleryArr.push(`/uploads/${f.filename}`));
+    }
+
+    await dbRun(
+      `UPDATE houses_for_sale 
+       SET title = ?, location = ?, price = ?, perches = ?, bedrooms = ?, bathrooms = ?, stories = ?, description = ?, image_url = ?, gallery = ?, contact_phone = ?, status = ?
+       WHERE id = ?`,
+      [
+        title !== undefined ? title : existing.title,
+        location !== undefined ? location : existing.location,
+        price !== undefined ? parseFloat(price) : existing.price,
+        perches !== undefined ? parseFloat(perches) : existing.perches,
+        bedrooms !== undefined ? parseInt(bedrooms) : existing.bedrooms,
+        bathrooms !== undefined ? parseInt(bathrooms) : existing.bathrooms,
+        stories !== undefined ? stories : existing.stories,
+        description !== undefined ? description : existing.description,
+        coverPath,
+        JSON.stringify(galleryArr),
+        contactPhone !== undefined ? contactPhone : existing.contact_phone,
+        status !== undefined ? status : existing.status,
+        propId
+      ]
+    );
+
+    res.json({ message: 'Property listing updated successfully!' });
+  } catch (error) {
+    console.error('Error updating property listing:', error);
+    res.status(500).json({ message: 'Server error updating property listing' });
+  }
+});
+
+// Admin: Delete house for sale
+app.delete('/api/admin/properties-for-sale/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
+  const propId = req.params.id;
+
+  try {
+    await dbRun("DELETE FROM houses_for_sale WHERE id = ?", [propId]);
+    res.json({ message: 'Property listing deleted successfully!' });
+  } catch (error) {
+    console.error('Error deleting property listing:', error);
+    res.status(500).json({ message: 'Server error deleting property listing' });
   }
 });
 

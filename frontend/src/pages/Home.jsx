@@ -8,11 +8,32 @@ import {
   CreditCard, CheckCircle, DollarSign, FileText, Building
 } from 'lucide-react';
 import API_URL from '../config';
+import { useLanguage } from '../context/LanguageContext';
+import BackButton from '../components/BackButton';
+import Footer from '../components/Footer';
 
 export default function Home() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
+
+  // Interactive Live Calculator State
+  const [calcInputMode, setCalcInputMode] = useState('perches'); // 'perches' or 'sqft'
+  const [calcPerches, setCalcPerches] = useState(10);
+  const [calcSqft, setCalcSqft] = useState(1500);
+  const [calcStories, setCalcStories] = useState(1);
+  const [calcQuality, setCalcQuality] = useState('high');
+
   const [activeFilter, setActiveFilter] = useState('all');
   const [housePlans, setHousePlans] = useState([]);
+  const [projectsList, setProjectsList] = useState([]);
+  const [propertiesForSale, setPropertiesForSale] = useState([]);
+  const [selectedPropertyModal, setSelectedPropertyModal] = useState(null);
+  const [activePropertyPhotoIdx, setActivePropertyPhotoIdx] = useState(0);
+
+  // Property Marketplace Search & Filter State
+  const [propSearchTerm, setPropSearchTerm] = useState('');
+  const [propStatusFilter, setPropStatusFilter] = useState('all');
+
   const [contactName, setContactName] = useState('');
   const [contactMessage, setContactMessage] = useState('');
   const [selectedProject, setSelectedProject] = useState(null);
@@ -37,6 +58,8 @@ export default function Home() {
     cardExpiry: '',
     cardCvc: '',
     bankRef: '',
+    bankSlipName: '',
+    bankSlipFile: null,
     notes: ''
   });
   const [isSubmittingEstimate, setIsSubmittingEstimate] = useState(false);
@@ -103,6 +126,24 @@ export default function Home() {
       .then(res => res.json())
       .then(data => setHousePlans(data))
       .catch(err => console.error('Error fetching plans:', err));
+
+    fetch(`${API_URL}/api/showcase-projects`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setProjectsList(data);
+        }
+      })
+      .catch(err => console.error('Error fetching showcase projects:', err));
+
+    fetch(`${API_URL}/api/properties-for-sale`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setPropertiesForSale(data);
+        }
+      })
+      .catch(err => console.error('Error fetching properties for sale:', err));
   }, []);
 
   const handleOpenDirectInquiry = (srv, e) => {
@@ -177,11 +218,12 @@ export default function Home() {
 
     try {
       const refNo = 'RC-EST-' + Math.floor(100000 + Math.random() * 900000);
+      const bankSlipInfo = estimateForm.bankSlipName ? ` [Slip attached: ${estimateForm.bankSlipName}]` : '';
       const paymentSummary = estimateForm.paymentMethod === 'card'
         ? `Card Payment (Visa/Mastercard ending ${estimateForm.cardNumber.slice(-4) || '8912'})`
         : estimateForm.paymentMethod === 'bank_transfer'
-        ? `Bank Transfer (Ref: ${estimateForm.bankRef || 'Commercial Bank Deposit'})`
-        : 'Cash Payment at Office/Site';
+        ? `Bank Transfer (Ref: ${estimateForm.bankRef || 'BOC Deposit'})${bankSlipInfo}`
+        : `Cash Payment at Office/Site${bankSlipInfo}`;
 
       const detailsStr = `Official Estimate Request (${refNo}) | House Stories: ${estimateForm.houseStories} | Land: ${estimateForm.landSize} Perches | Quality Tier: ${modalQualityTier.toUpperCase()} | Attached Plan: ${uploadedPlanFile || 'Pending Blueprint Upload'} | Payment Method: ${paymentSummary} (LKR 1,500.00 Processing Fee Paid)`;
 
@@ -249,8 +291,9 @@ export default function Home() {
       description: 'Certified residential and industrial electrical wiring solutions by Rohana Construction. We configure concealed conduits, distribution boards, smart lighting controls, earthing systems, and CEB/LECO compliant safety setups.',
       specs: { "Wiring Type": "Concealed Single & Three-Phase", "Materials": "Fire-retardant PVC conduits & ACL copper cables", "Safety Checks": "Insulation resistance & earth testing", "Certification": "CEB & LECO standards approval" },
       gallery: [
-        "https://images.unsplash.com/photo-1581094288338-2314dddb7ecc?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1590069261209-f8e9b8642343?auto=format&fit=crop&w=800&q=80"
+        "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80",
+        "/images/electrical-wiring-outlet.jpg"
       ]
     },
     { 
@@ -261,7 +304,9 @@ export default function Home() {
       description: 'High-finish wall coating and aesthetic interior/exterior painting services. We apply multi-layer wall putty, moisture-proof sealers, and weather-guard coats to keep your walls vibrant and weather-resistant.',
       specs: { "Layering": "1 Sealer + 2 Putty Coats + 2 Paint Coats", "Paint Brands": "Dulux WeatherShield / Robbialac Permoglaze", "Warranty": "5-Year weather proof coating warranty", "Eco Standard": "Ultra low VOC odourless paint" },
       gallery: [
-        "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80"
+        "https://images.unsplash.com/photo-1562259949-e8e7689d7828?auto=format&fit=crop&w=1200&q=80",
+        "/images/painting-roller-wall.jpg",
+        "/images/painting-brush-window.jpg"
       ]
     },
     { 
@@ -272,7 +317,9 @@ export default function Home() {
       description: 'Complete plumbing layout routing, high-pressure booster pump installs, leak repairs, and high-end bathroom sanitary fitting setups. Engineered for zero leaks and long term reliability.',
       specs: { "Piping": "Type-1000 PVC & PPR hot/cold lines", "Fittings": "Brass gate valves & stainless steel traps", "Inspections": "24-Hour hydrostatic leak pressure test", "Guarantee": "5-Year leak-free assurance" },
       gallery: [
-        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80"
+        "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&w=1200&q=80",
+        "/images/plumbing-pvc-pipes.jpg",
+        "/images/plumbing-leak-repair.jpg"
       ]
     },
     { 
@@ -283,8 +330,9 @@ export default function Home() {
       description: 'Master carpentry craftsmanship for custom solid teak & mahogany doors, window frames, kitchen pantry counters, timber roof framing, and decorative wooden ceiling installations.',
       specs: { "Wood Types": "Seasoned Teak, Mahogany, Kempas Hardwood", "Roof Framing": "Micro-treated timber framework", "Pantry Setup": "Soft-close modular kitchen cabinets", "Treatment": "100% Anti-termite pressure treatment" },
       gallery: [
-        "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=800&q=80"
+        "/images/carpentry-wooden-door.jpg",
+        "/images/carpentry-timber-wood.jpg",
+        "/images/carpentry-woodworking-tools.jpg"
       ]
     },
     { 
@@ -295,7 +343,9 @@ export default function Home() {
       description: 'Professional slab shuttering (Satalin), beam formwork, column shuttering, TMT steel rebar binding, and ready-mix concrete pouring for single & multi-story structures.',
       specs: { "Formwork": "Heavy Marine Plywood & Steel props", "Rebar Steel": "High-yield TMT Fe500 steel bars", "Concrete Grade": "Grade 25 / Grade 30 Ready-Mix", "Curing": "Supervised membrane water curing" },
       gallery: [
-        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=800&q=80"
+        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80",
+        "/images/slab-shuttering-rebar.jpg"
       ]
     },
     { 
@@ -306,7 +356,9 @@ export default function Home() {
       description: 'Flawless floor and wall tiling for residential and commercial spaces. We install 2x2ft & 2x4ft porcelain tiles, non-slip car porch tiles, granite kitchen countertops, and polished marble.',
       specs: { "Tile Formats": "2x2 ft, 2x4 ft Porcelain & Granite Slabs", "Adhesive": "Waterproof polymer modified tile mortar", "Leveling": "Laser-level alignment & epoxy grouting", "Finishing": "Beveled edge grinding & stain seal" },
       gallery: [
-        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80"
+        "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80",
+        "/images/tile-work-marble-floor.jpg",
+        "/images/tile-work-pattern-backsplash.jpg"
       ]
     },
     { 
@@ -317,13 +369,14 @@ export default function Home() {
       description: 'Get custom 2D blueprints, detailed electrical/plumbing diagrams, and 3D architectural walkthrough animations. Our draftsmen build state of the art layouts tailored to optimize natural lighting and ventilation.',
       specs: { "Deliverables": "2D Blueprints & 3D walkthroughs", "Formats": "AutoCAD DWG, PDF, High-Res PNG", "Revisions": "Up to 3 revisions included", "Design Fee": "Deducted if construction is handled by us" },
       gallery: [
-        "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80"
+        "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80",
+        "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80"
       ]
     }
   ];
 
-  const projects = [
+  const defaultProjects = [
     { 
       id: 'rohana-single-house-1',
       title: 'Modern Single Story House', 
@@ -577,17 +630,14 @@ export default function Home() {
     }
   ];
 
+  const displayProjects = projectsList.length > 0 ? projectsList : defaultProjects;
+
   const filteredProjects = activeFilter === 'all' 
-    ? projects 
-    : projects.filter(p => p.category === activeFilter);
+    ? displayProjects 
+    : displayProjects.filter(p => p.category === activeFilter);
 
   const handleEstimateClick = () => {
-    const user = localStorage.getItem('rcms_user');
-    if (user) {
-      navigate('/customer');
-    } else {
-      navigate('/login?redirect=estimate');
-    }
+    handleOpenDirectInquiry({ name: 'Free Construction Cost Estimate / පිරිවැය ගණන් හැදීම' });
   };
 
   const handleRequestPlan = (planId) => {
@@ -649,11 +699,11 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div className="space-y-1">
-              <span className="block text-4xl md:text-5xl font-black text-amber-500">15+</span>
+              <span className="block text-4xl md:text-5xl font-black text-amber-500">25+</span>
               <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Years Experience</span>
             </div>
             <div className="space-y-1">
-              <span className="block text-4xl md:text-5xl font-black text-amber-500">250+</span>
+              <span className="block text-4xl md:text-5xl font-black text-amber-500">100+</span>
               <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Completed Projects</span>
             </div>
             <div className="space-y-1">
@@ -664,6 +714,217 @@ export default function Home() {
               <span className="block text-4xl md:text-5xl font-black text-amber-500">100%</span>
               <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Customer Satisfaction</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Interactive Live Cost Calculator Section */}
+      <section id="calculator" className="py-20 bg-slate-900 text-white border-b border-slate-800 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 blur-[120px] rounded-full pointer-events-none" />
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center space-y-3 mb-12">
+            <span className="text-xs uppercase tracking-widest font-extrabold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3.5 py-1.5 rounded-full inline-flex items-center gap-1.5">
+              <Calculator className="h-4 w-4" /> {t.calcTitle}
+            </span>
+            <h2 className="text-3xl md:text-4xl font-extrabold uppercase text-white">
+              Instant Construction Budget Estimator
+            </h2>
+            <p className="max-w-xl mx-auto text-sm text-slate-400">
+              {t.calcSubtitle}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-slate-950/80 backdrop-blur-xl border border-slate-800 p-6 md:p-10 rounded-3xl shadow-2xl">
+            
+            {/* Sliders & Controls Column */}
+            <div className="lg:col-span-7 space-y-8">
+              
+              {/* Control 1: Land Extent (Perches) */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm font-bold">
+                  <span className="text-slate-300 uppercase tracking-wide">{t.landSize}</span>
+                  <span className="text-amber-400 text-base font-black bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-xl">
+                    {calcPerches} Perches Land
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={5}
+                  max={40}
+                  step={1}
+                  value={calcPerches}
+                  onChange={(e) => setCalcPerches(parseInt(e.target.value))}
+                  className="w-full h-3 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                />
+                <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                  <span>5 Perches (Small Plot)</span>
+                  <span>20 Perches (Medium Plot)</span>
+                  <span>40 Perches (Large Estate)</span>
+                </div>
+              </div>
+
+              {/* Control 2: Independent House Built Area (SqFt) */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm font-bold">
+                  <span className="text-slate-300 uppercase tracking-wide">{t.customSqftLabel}</span>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      min={400}
+                      max={8000}
+                      step={50}
+                      value={calcSqft}
+                      onChange={(e) => setCalcSqft(Math.max(400, parseInt(e.target.value) || 400))}
+                      className="w-28 bg-slate-900 border border-amber-500/40 text-amber-400 text-base font-black px-3 py-1 rounded-xl text-center focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="text-xs text-amber-400 font-bold">SqFt</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={500}
+                  max={6000}
+                  step={50}
+                  value={calcSqft}
+                  onChange={(e) => setCalcSqft(parseInt(e.target.value))}
+                  className="w-full h-3 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                />
+                <div className="flex justify-between text-[10px] font-bold text-slate-500">
+                  <span>500 SqFt (Compact)</span>
+                  <span>2,000 SqFt (Family Home)</span>
+                  <span>6,000 SqFt (Luxury Villa)</span>
+                </div>
+              </div>
+
+              {/* Stories Selector */}
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wide">
+                  {t.houseStories}
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { num: 1, label: 'Single Story (1 Floor)' },
+                    { num: 2, label: 'Two Stories (2 Floors)' },
+                    { num: 3, label: 'Three Stories (3 Floors)' }
+                  ].map((s) => (
+                    <button
+                      key={s.num}
+                      type="button"
+                      onClick={() => setCalcStories(s.num)}
+                      className={`p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
+                        calcStories === s.num
+                          ? 'bg-amber-500 text-slate-950 border-amber-500 ring-2 ring-amber-500/30 shadow-lg'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quality Tier Selector */}
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wide">
+                  {t.qualityTier}
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCalcQuality('high')}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                      calcQuality === 'high'
+                        ? 'bg-amber-500/10 border-amber-500 text-amber-400 ring-1 ring-amber-500/30'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="block text-sm font-black text-white">⭐ High Quality Tier</span>
+                    <span className="block text-[11px] text-slate-400 mt-1">{t.highQuality}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalcQuality('medium')}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                      calcQuality === 'medium'
+                        ? 'bg-amber-500/10 border-amber-500 text-amber-400 ring-1 ring-amber-500/30'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="block text-sm font-black text-white">🏗️ Medium Grade Tier</span>
+                    <span className="block text-[11px] text-slate-400 mt-1">{t.mediumQuality}</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Live Output Summary Column */}
+            {(() => {
+              const activeBuiltSqft = calcSqft * (calcStories === 1 ? 1 : calcStories === 2 ? 1.8 : 2.5);
+              
+              const ratePerSqft = calcQuality === 'high' ? 7500 : 5800;
+              const calcTotalCost = Math.round(activeBuiltSqft * ratePerSqft);
+              const calcStructCost = Math.round(calcTotalCost * 0.55);
+              const calcFinishCost = Math.round(calcTotalCost * 0.45);
+              
+              const calcWeeks = Math.round(14 + (activeBuiltSqft / 120) + ((calcStories - 1) * 6));
+              const calcMonths = (calcWeeks / 4.33).toFixed(1);
+
+              return (
+                <div className="lg:col-span-5 bg-slate-900 border border-slate-800 p-6 md:p-8 rounded-2xl space-y-6">
+                  
+                  {/* Competitive Price Badge */}
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl text-[10px] font-extrabold text-emerald-400 flex items-center space-x-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>{t.calcCompetitiveBadge}</span>
+                  </div>
+
+                  <div className="space-y-1 border-b border-slate-800 pb-4">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">Live Breakdown</span>
+                    <div className="text-3xl md:text-4xl font-black text-emerald-400">
+                      LKR {calcTotalCost.toLocaleString('en-US')}
+                    </div>
+                    <span className="text-xs text-slate-400">{t.estimatedTotal} ({calcSqft} SqFt on {calcPerches} Perches)</span>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">{t.structuralCost} (55%)</span>
+                      <span className="font-bold text-slate-200">
+                        LKR {calcStructCost.toLocaleString('en-US')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60">
+                      <span className="text-slate-400">{t.finishCost} (45%)</span>
+                      <span className="font-bold text-slate-200">
+                        LKR {calcFinishCost.toLocaleString('en-US')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-800/60 items-center">
+                      <span className="text-slate-400">{t.estimatedDuration}</span>
+                      <span className="font-bold text-amber-400">
+                        {calcWeeks} {t.weeks} (~{calcMonths} Months)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Disclaimer Notice Box */}
+                  <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-xl text-[11px] text-amber-300 leading-relaxed">
+                    {t.calcDisclaimer}
+                  </div>
+
+                  <button
+                    onClick={() => handleOpenDirectInquiry({ name: `Official Engineer Verification (${calcSqft} SqFt / ${calcPerches} Perches / ${calcStories} Story / ${calcQuality} Quality)` })}
+                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold py-3.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-500/20 cursor-pointer flex items-center justify-center space-x-2"
+                  >
+                    <PhoneCall className="h-4 w-4" />
+                    <span>{t.requestEngineer}</span>
+                  </button>
+                </div>
+              );
+            })()}
+
           </div>
         </div>
       </section>
@@ -899,6 +1160,175 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ====================== HOUSES & PROPERTIES FOR SALE SECTION ====================== */}
+      <section id="for-sale" className="py-24 bg-slate-900 text-white relative overflow-hidden border-t border-slate-800">
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/10 blur-[140px] rounded-full pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
+          <div className="text-center space-y-4 max-w-3xl mx-auto">
+            <div className="inline-flex items-center space-x-2 bg-amber-500/10 border border-amber-500/30 px-4 py-1.5 rounded-full">
+              <HouseIcon className="h-4 w-4 text-amber-500" />
+              <span className="text-amber-500 font-extrabold text-xs uppercase tracking-widest">
+                Ready Built Homes Marketplace
+              </span>
+            </div>
+            <h2 className="text-3xl md:text-5xl font-black tracking-tight text-white uppercase">
+              Houses & Properties <span className="text-amber-500">For Sale</span>
+            </h2>
+            <p className="text-slate-400 text-sm md:text-base leading-relaxed">
+              Explore turnkey modern residences and properties engineered and built by Rohana Construction, available for immediate purchase.
+            </p>
+          </div>
+
+          {/* Search & Filter Controls Bar */}
+          <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 max-w-4xl mx-auto shadow-lg">
+            <div className="relative w-full md:w-1/2">
+              <input
+                type="text"
+                value={propSearchTerm}
+                onChange={(e) => setPropSearchTerm(e.target.value)}
+                placeholder="Search location or keyword (e.g. Matara, Piliyandala)..."
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+              />
+              {propSearchTerm && (
+                <button
+                  onClick={() => setPropSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 justify-center">
+              {[
+                { id: 'all', label: 'All Properties' },
+                { id: 'available', label: 'Available' },
+                { id: 'reserved', label: 'Reserved' },
+                { id: 'sold', label: 'Sold Out' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setPropStatusFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    propStatusFilter === tab.id
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {propertiesForSale.filter(p => {
+            const matchesSearch = !propSearchTerm || 
+              p.title.toLowerCase().includes(propSearchTerm.toLowerCase()) || 
+              p.location.toLowerCase().includes(propSearchTerm.toLowerCase());
+            const matchesStatus = propStatusFilter === 'all' || p.status === propStatusFilter;
+            return matchesSearch && matchesStatus;
+          }).length === 0 ? (
+            <div className="text-center py-12 bg-slate-950/60 border border-slate-800 rounded-3xl">
+              <HouseIcon className="h-12 w-12 text-slate-600 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm font-semibold">No property listings found matching your search.</p>
+              <p className="text-slate-500 text-xs mt-1">Try clearing your search query or selecting a different status filter.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {propertiesForSale.filter(p => {
+                const matchesSearch = !propSearchTerm || 
+                  p.title.toLowerCase().includes(propSearchTerm.toLowerCase()) || 
+                  p.location.toLowerCase().includes(propSearchTerm.toLowerCase());
+                const matchesStatus = propStatusFilter === 'all' || p.status === propStatusFilter;
+                return matchesSearch && matchesStatus;
+              }).map((prop) => (
+                <div 
+                  key={prop.id}
+                  className="bg-slate-950/80 border border-slate-800 rounded-3xl overflow-hidden hover:border-amber-500/40 transition-all duration-300 shadow-xl flex flex-col justify-between group"
+                >
+                  {/* Image & Status Badge */}
+                  <div className="relative h-64 overflow-hidden bg-slate-900">
+                    <img 
+                      src={prop.image_url} 
+                      alt={prop.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute top-4 left-4 flex gap-2">
+                      <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-lg ${
+                        prop.status === 'sold'
+                          ? 'bg-red-500 text-white'
+                          : prop.status === 'reserved'
+                          ? 'bg-amber-500 text-slate-950 font-extrabold'
+                          : 'bg-emerald-500 text-slate-950 font-extrabold'
+                      }`}>
+                        {prop.status === 'sold' ? 'Sold Out' : prop.status === 'reserved' ? 'Reserved' : 'For Sale / Available'}
+                      </span>
+                    </div>
+
+                    <div className="absolute bottom-4 right-4 bg-slate-950/90 border border-slate-800 backdrop-blur-md px-3 py-1.5 rounded-xl">
+                      <span className="text-xs text-amber-500 font-extrabold block">
+                        LKR {Number(prop.price).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Body Content */}
+                  <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-1.5 text-slate-400 text-xs">
+                        <MapPin className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                        <span className="truncate">{prop.location}</span>
+                      </div>
+                      <h3 className="font-extrabold text-lg text-white leading-snug line-clamp-2">{prop.title}</h3>
+                      <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed font-normal">{prop.description}</p>
+                    </div>
+
+                    {/* Spec Pills */}
+                    <div className="grid grid-cols-3 gap-2 text-[11px] bg-slate-900/80 p-3 rounded-2xl border border-slate-800/80 text-slate-300">
+                      <div className="text-center">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Land</span>
+                        <span className="font-bold text-amber-400">{prop.perches} Perches</span>
+                      </div>
+                      <div className="text-center border-x border-slate-800">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Bedrooms</span>
+                        <span className="font-bold text-amber-400">{prop.bedrooms} Beds</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Bathrooms</span>
+                        <span className="font-bold text-amber-400">{prop.bathrooms} Baths</span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <button
+                        onClick={() => {
+                          setSelectedPropertyModal(prop);
+                          setActivePropertyPhotoIdx(0);
+                        }}
+                        className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all border border-slate-700 cursor-pointer text-center"
+                      >
+                        View Photos
+                      </button>
+                      <a
+                        href={`https://wa.me/94769117398?text=${encodeURIComponent(`Hi Rohana Construction, I am interested in purchasing the property: "${prop.title}" in ${prop.location} (Price: LKR ${Number(prop.price).toLocaleString()}). Please provide more details.`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer text-center flex items-center justify-center space-x-1"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        <span>Inquire Now</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* Contact & WhatsApp Section */}
       <section className="py-24 bg-white border-t border-slate-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -970,13 +1400,17 @@ export default function Home() {
 
       {/* Project Details Modal */}
       {selectedProject && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 md:p-6">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-start justify-center p-4 md:p-6 overflow-y-auto pt-24 pb-12">
           <div className="bg-white rounded-3xl overflow-hidden max-w-4xl w-full shadow-2xl relative border border-slate-100 flex flex-col md:flex-row max-h-[90vh] md:max-h-[85vh]">
             
-            {/* Close Button */}
+            {/* Action Buttons */}
+            <div className="absolute top-4 left-4 z-20">
+              <BackButton onClick={() => setSelectedProject(null)} label="Back" variant="subtle" />
+            </div>
             <button 
               onClick={() => setSelectedProject(null)}
               className="absolute top-4 right-4 z-20 bg-slate-900/60 backdrop-blur-sm hover:bg-slate-900 text-white rounded-full p-2.5 transition-colors cursor-pointer"
+              title="Close"
             >
               <X className="h-5 w-5" />
             </button>
@@ -1075,13 +1509,17 @@ export default function Home() {
 
       {/* Service Details Modal */}
       {selectedService && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 md:p-6">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-start justify-center p-4 md:p-6 overflow-y-auto pt-24 pb-12">
           <div className="bg-white rounded-3xl overflow-hidden max-w-4xl w-full shadow-2xl relative border border-slate-100 flex flex-col md:flex-row max-h-[90vh] md:max-h-[85vh]">
             
-            {/* Close Button */}
+            {/* Action Buttons */}
+            <div className="absolute top-4 left-4 z-20">
+              <BackButton onClick={() => setSelectedService(null)} label="Back" variant="subtle" />
+            </div>
             <button 
               onClick={() => setSelectedService(null)}
               className="absolute top-4 right-4 z-20 bg-slate-900/60 backdrop-blur-sm hover:bg-slate-900 text-white rounded-full p-2.5 transition-colors cursor-pointer"
+              title="Close"
             >
               <X className="h-5 w-5" />
             </button>
@@ -1363,21 +1801,6 @@ export default function Home() {
                       <PhoneCall className="h-4 w-4" />
                       <span>Direct Contact / Book {selectedService.name}</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        const user = localStorage.getItem('rcms_user');
-                        const serviceName = encodeURIComponent(selectedService.name);
-                        setSelectedService(null);
-                        if (user) {
-                          navigate(`/customer?tab=estimator&service=${serviceName}`);
-                        } else {
-                          navigate(`/login?redirect=service&service=${serviceName}`);
-                        }
-                      }}
-                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition-all cursor-pointer text-center text-xs border border-slate-700"
-                    >
-                      Get Cost Estimate in Customer Portal
-                    </button>
                   </div>
                 </div>
               )}
@@ -1390,20 +1813,24 @@ export default function Home() {
       {/* ====================== DIRECT SERVICE CONTACT MODAL ====================== */}
       {directInquiryService && (
         <div 
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-start justify-center p-4 md:p-6 overflow-y-auto pt-24 pb-12 animate-fade-in"
           onClick={() => setDirectInquiryService(null)}
         >
           <div 
-            className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 p-6 md:p-8 space-y-6 relative text-left"
+            className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200 p-6 md:p-8 space-y-5 relative text-left"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close Button */}
-            <button
-              onClick={() => setDirectInquiryService(null)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-900 bg-slate-100 p-2 rounded-full transition-colors cursor-pointer"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            {/* Top Action Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <BackButton onClick={() => setDirectInquiryService(null)} label="Back" variant="subtle" />
+              <button
+                onClick={() => setDirectInquiryService(null)}
+                className="text-slate-400 hover:text-slate-900 bg-slate-100 p-1.5 rounded-full transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
             {/* Header */}
             <div className="space-y-2">
@@ -1416,10 +1843,10 @@ export default function Home() {
                 </span>
               </div>
               <h3 className="text-2xl font-black text-slate-900">
-                Inquire for {directInquiryService.name}
+                {directInquiryService.name.includes('Free') ? 'Get Free Estimate & Direct Contact' : `Inquire for ${directInquiryService.name}`}
               </h3>
               <p className="text-xs text-slate-500">
-                Contact our engineering team directly via phone, WhatsApp, or submit your site details below for a quick callback.
+                Call our structural engineers directly via phone, WhatsApp, or submit your site details below for an immediate free estimate callback. No sign up required!
               </p>
             </div>
 
@@ -1531,23 +1958,27 @@ export default function Home() {
       {/* ====================== REQUEST OFFICIAL ESTIMATE & PAYMENT MODAL ====================== */}
       {isRequestEstimateOpen && (
         <div 
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fade-in"
+          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-start justify-center p-4 md:p-6 overflow-y-auto pt-24 pb-12 animate-fade-in"
           onClick={() => setIsRequestEstimateOpen(false)}
         >
           <div 
-            className="bg-white rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl border border-slate-200 p-6 md:p-8 space-y-6 relative text-left my-8"
+            className="bg-white rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl border border-slate-200 p-6 md:p-8 space-y-5 relative text-left"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close Button */}
-            <button
-              onClick={() => setIsRequestEstimateOpen(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-900 bg-slate-100 p-2 rounded-full transition-colors cursor-pointer"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            {/* Top Action Header with Back & Close */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <BackButton onClick={() => setIsRequestEstimateOpen(false)} label="Back" variant="subtle" />
+              <button
+                onClick={() => setIsRequestEstimateOpen(false)}
+                className="text-slate-400 hover:text-slate-900 bg-slate-100 p-1.5 rounded-full transition-colors cursor-pointer"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
 
-            {/* Header */}
-            <div className="space-y-1.5 border-b border-slate-100 pb-4">
+            {/* Header Title & Subtitle */}
+            <div className="space-y-1.5 border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-700 px-3 py-1 rounded-full flex items-center gap-1">
                   <Calculator className="h-3.5 w-3.5" /> Official Build Estimate
@@ -1806,11 +2237,11 @@ export default function Home() {
                   )}
 
                   {estimateForm.paymentMethod === 'bank_transfer' && (
-                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl space-y-2 text-xs">
+                    <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl space-y-3 text-xs">
                       <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1 text-[11px] text-slate-700">
-                        <span className="font-bold block text-slate-900">Commercial Bank of Ceylon</span>
-                        <div>Account Name: <strong>Rohana Construction (Pvt) Ltd</strong></div>
-                        <div>Account No: <strong>8009214732</strong> (Maharagama Branch)</div>
+                        <span className="font-bold block text-slate-900">Bank of Ceylon (BOC)</span>
+                        <div>Account Name: <strong>T.R.D.Malinda</strong></div>
+                        <div>Account No: <strong>0090863683</strong> (Kesbewa Branch)</div>
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Bank Slip Ref / Deposit ID</label>
@@ -1818,16 +2249,80 @@ export default function Home() {
                           type="text"
                           value={estimateForm.bankRef}
                           onChange={(e) => setEstimateForm({ ...estimateForm, bankRef: e.target.value })}
-                          placeholder="e.g. CBLK-904128"
+                          placeholder="e.g. BOC-904128"
                           className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                          Upload Bank Transfer Slip / Deposit Receipt (PDF / Image) *
+                        </label>
+                        <label className="flex items-center justify-center space-x-2 bg-white border border-slate-300 border-dashed hover:border-amber-500 rounded-xl p-3 cursor-pointer transition-colors text-xs text-slate-600">
+                          <UploadCloud className="h-4 w-4 text-amber-500 shrink-0" />
+                          <span className="truncate">
+                            {estimateForm.bankSlipName ? estimateForm.bankSlipName : 'Upload Slip PDF / Photo (.pdf, .jpg, .png)'}
+                          </span>
+                          <input
+                            type="file"
+                            accept=".pdf,image/*"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                setEstimateForm({
+                                  ...estimateForm,
+                                  bankSlipName: file.name,
+                                  bankSlipFile: file
+                                });
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        {estimateForm.bankSlipName && (
+                          <p className="text-[10px] text-emerald-600 font-bold mt-1.5 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Attached: {estimateForm.bankSlipName}
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
 
                   {estimateForm.paymentMethod === 'cash' && (
-                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-2xl text-xs text-amber-950 font-medium">
-                      💵 You can pay the <strong>LKR 1,500.00</strong> fee in cash directly at our Maharagama office or hand it over to our structural engineer during the initial site visit.
+                    <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl space-y-3 text-xs text-amber-950">
+                      <p className="font-medium text-xs">
+                        💵 You can pay the <strong>LKR 1,500.00</strong> fee in cash directly at our Maharagama office or hand it over to our structural engineer during the initial site visit.
+                      </p>
+                      <div>
+                        <label className="block text-[10px] font-bold text-amber-900 uppercase mb-1">
+                          Optional: Upload Cash Deposit Receipt / Voucher (PDF / Image)
+                        </label>
+                        <label className="flex items-center justify-center space-x-2 bg-white border border-amber-300 border-dashed hover:border-amber-500 rounded-xl p-2.5 cursor-pointer transition-colors text-xs text-slate-600">
+                          <UploadCloud className="h-4 w-4 text-amber-500 shrink-0" />
+                          <span className="truncate">
+                            {estimateForm.bankSlipName ? estimateForm.bankSlipName : 'Attach Cash Voucher Receipt (Optional)'}
+                          </span>
+                          <input
+                            type="file"
+                            accept=".pdf,image/*"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                setEstimateForm({
+                                  ...estimateForm,
+                                  bankSlipName: file.name,
+                                  bankSlipFile: file
+                                });
+                              }
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        {estimateForm.bankSlipName && (
+                          <p className="text-[10px] text-emerald-700 font-bold mt-1 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Attached: {estimateForm.bankSlipName}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1842,6 +2337,138 @@ export default function Home() {
                 </button>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Property Details Modal */}
+      {selectedPropertyModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-start justify-center p-4 md:p-6 overflow-y-auto pt-24 pb-12">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-4xl w-full shadow-2xl relative border border-slate-100 flex flex-col md:flex-row max-h-[90vh] md:max-h-[85vh]">
+            
+            {/* Action Buttons */}
+            <div className="absolute top-4 left-4 z-20">
+              <BackButton onClick={() => setSelectedPropertyModal(null)} label="Back" variant="subtle" />
+            </div>
+            <button 
+              onClick={() => setSelectedPropertyModal(null)}
+              className="absolute top-4 right-4 z-20 bg-slate-900/60 backdrop-blur-sm hover:bg-slate-900 text-white rounded-full p-2.5 transition-colors cursor-pointer"
+              title="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Left Column: Photos Gallery */}
+            <div className="w-full md:w-1/2 bg-slate-950 flex flex-col justify-between p-4 relative min-h-[300px] md:min-h-[450px]">
+              <div className="flex-1 flex items-center justify-center overflow-hidden rounded-xl bg-slate-900 relative">
+                <img 
+                  src={selectedPropertyModal.gallery ? selectedPropertyModal.gallery[activePropertyPhotoIdx] || selectedPropertyModal.image_url : selectedPropertyModal.image_url} 
+                  alt={selectedPropertyModal.title} 
+                  className="max-h-[360px] w-full object-cover rounded-lg"
+                />
+
+                {selectedPropertyModal.gallery && selectedPropertyModal.gallery.length > 1 && (
+                  <>
+                    <button 
+                      onClick={() => setActivePropertyPhotoIdx((prev) => (prev - 1 + selectedPropertyModal.gallery.length) % selectedPropertyModal.gallery.length)}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full backdrop-blur-sm transition-all cursor-pointer"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button 
+                      onClick={() => setActivePropertyPhotoIdx((prev) => (prev + 1) % selectedPropertyModal.gallery.length)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full backdrop-blur-sm transition-all cursor-pointer"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Thumbnails */}
+              {selectedPropertyModal.gallery && selectedPropertyModal.gallery.length > 1 && (
+                <div className="mt-4 flex gap-2 overflow-x-auto pb-1 justify-center">
+                  {selectedPropertyModal.gallery.map((url, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setActivePropertyPhotoIdx(idx)}
+                      className={`h-12 w-16 shrink-0 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                        activePropertyPhotoIdx === idx ? 'border-amber-500 scale-105 ring-2 ring-amber-500/30' : 'border-slate-800 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Property Info */}
+            <div className="w-full md:w-1/2 p-6 md:p-8 overflow-y-auto flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full ${
+                    selectedPropertyModal.status === 'sold'
+                      ? 'bg-red-100 text-red-700'
+                      : selectedPropertyModal.status === 'reserved'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {selectedPropertyModal.status === 'sold' ? 'Sold Out' : selectedPropertyModal.status === 'reserved' ? 'Reserved' : 'For Sale / Available'}
+                  </span>
+                  <span className="text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-lg border border-amber-200">
+                    LKR {Number(selectedPropertyModal.price).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="text-xl font-black text-slate-900 leading-tight">{selectedPropertyModal.title}</h3>
+                  <p className="text-xs text-slate-500 font-semibold">{selectedPropertyModal.location}</p>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed font-normal">{selectedPropertyModal.description}</p>
+
+                {/* Technical Specs Table */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                  <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                    <span className="text-slate-500 font-medium">Land Extent:</span>
+                    <span className="font-bold text-slate-900">{selectedPropertyModal.perches} Perches</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                    <span className="text-slate-500 font-medium">Bedrooms:</span>
+                    <span className="font-bold text-slate-900">{selectedPropertyModal.bedrooms} Bedrooms</span>
+                  </div>
+                  <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                    <span className="text-slate-500 font-medium">Bathrooms:</span>
+                    <span className="font-bold text-slate-900">{selectedPropertyModal.bathrooms} Bathrooms</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Structure Stories:</span>
+                    <span className="font-bold text-slate-900">{selectedPropertyModal.stories}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
+                <a
+                  href={`tel:${selectedPropertyModal.contact_phone || '0769117398'}`}
+                  className="flex items-center justify-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-xl text-xs transition-all shadow-md cursor-pointer border border-slate-800"
+                >
+                  <Phone className="h-4 w-4 text-amber-400" />
+                  <span>Call Agent</span>
+                </a>
+                <a
+                  href={`https://wa.me/94769117398?text=${encodeURIComponent(`Hi Rohana Construction, I am interested in purchasing property "${selectedPropertyModal.title}" (Price: LKR ${Number(selectedPropertyModal.price).toLocaleString()}). Please arrange a site inspection.`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3 px-4 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>WhatsApp Inquiry</span>
+                </a>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

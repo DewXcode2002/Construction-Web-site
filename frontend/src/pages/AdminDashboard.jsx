@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, HardHat, ClipboardList, CheckSquare, MessageSquare, 
-  Send, UserCheck, Check, X, ShieldCheck, Settings, RefreshCw 
+  Send, UserCheck, Check, X, ShieldCheck, Settings, RefreshCw,
+  Briefcase, Plus, Trash2, Edit, Image as ImageIcon, Eye, UploadCloud, Home as HouseIcon, MapPin, Phone
 } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import API_URL from '../config';
+import BackButton from '../components/BackButton';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
@@ -22,9 +24,50 @@ export default function AdminDashboard() {
   const [estimates, setEstimates] = useState([]);
   const [inquiries, setInquiries] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [showcaseProjects, setShowcaseProjects] = useState([]);
+  const [propertiesForSale, setPropertiesForSale] = useState([]);
   const [chats, setChats] = useState([]);
   const [selectedChatUser, setSelectedChatUser] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
+
+  // Houses For Sale Modal State
+  const [isPropModalOpen, setIsPropModalOpen] = useState(false);
+  const [editingProperty, setEditingProperty] = useState(null);
+  const [propertyForm, setPropertyForm] = useState({
+    title: '',
+    location: '',
+    price: '',
+    perches: '',
+    bedrooms: '3',
+    bathrooms: '2',
+    stories: 'Two Stories',
+    description: '',
+    contactPhone: '076 911 73 98',
+    status: 'available',
+    imageUrl: ''
+  });
+  const [propCoverFile, setPropCoverFile] = useState(null);
+  const [propGalleryFiles, setPropGalleryFiles] = useState([]);
+  const [isSubmittingProp, setIsSubmittingProp] = useState(false);
+  const [propMsg, setPropMsg] = useState('');
+
+  // Showcase Project Modal State
+  const [isShowcaseModalOpen, setIsShowcaseModalOpen] = useState(false);
+  const [editingShowcase, setEditingShowcase] = useState(null);
+  const [showcaseForm, setShowcaseForm] = useState({
+    title: '',
+    location: '',
+    category: 'house',
+    tag: 'Rohana Completed Build',
+    description: '',
+    specs: '',
+    imageUrl: '',
+    galleryUrls: ''
+  });
+  const [coverFile, setCoverFile] = useState(null);
+  const [galleryFiles, setGalleryFiles] = useState([]);
+  const [isSubmittingShowcase, setIsSubmittingShowcase] = useState(false);
+  const [showcaseMsg, setShowcaseMsg] = useState('');
   
   // Action inputs
   const [adjustedCost, setAdjustedCost] = useState({});
@@ -33,8 +76,18 @@ export default function AdminDashboard() {
   const [assignedWorkers, setAssignedWorkers] = useState({});
   const [uploadFiles, setUploadFiles] = useState({});
   const [uploadPlanFiles, setUploadPlanFiles] = useState({});
-  const [adminBreakdowns, setAdminBreakdowns] = useState({});
   const [adjustedWeeks, setAdjustedWeeks] = useState({});
+  
+  // Search & Filter state
+  const [empSearch, setEmpSearch] = useState('');
+  const [empCategoryFilter, setEmpCategoryFilter] = useState('all');
+  const [empStatusFilter, setEmpStatusFilter] = useState('all');
+
+  const [estSearch, setEstSearch] = useState('');
+  const [estStatusFilter, setEstStatusFilter] = useState('all');
+
+  const [inquirySearch, setInquirySearch] = useState('');
+
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -104,6 +157,261 @@ export default function AdminDashboard() {
       .then(res => res.json())
       .then(data => setChats(data))
       .catch(err => console.error(err));
+
+    // Website Showcase Portfolio Projects
+    fetch(`${API_URL}/api/admin/showcase-projects`, { headers })
+      .then(res => res.json())
+      .then(data => setShowcaseProjects(Array.isArray(data) ? data : []))
+      .catch(err => console.error(err));
+
+    // Houses For Sale
+    fetch(`${API_URL}/api/properties-for-sale`)
+      .then(res => res.json())
+      .then(data => setPropertiesForSale(Array.isArray(data) ? data : []))
+      .catch(err => console.error(err));
+  };
+
+  const handleOpenAddProperty = () => {
+    setEditingProperty(null);
+    setPropertyForm({
+      title: '',
+      location: '',
+      price: '',
+      perches: '',
+      bedrooms: '3',
+      bathrooms: '2',
+      stories: 'Two Stories',
+      description: '',
+      contactPhone: '076 911 73 98',
+      status: 'available',
+      imageUrl: ''
+    });
+    setPropCoverFile(null);
+    setPropGalleryFiles([]);
+    setPropMsg('');
+    setIsPropModalOpen(true);
+  };
+
+  const handleOpenEditProperty = (prop) => {
+    setEditingProperty(prop);
+    setPropertyForm({
+      title: prop.title || '',
+      location: prop.location || '',
+      price: prop.price || '',
+      perches: prop.perches || '',
+      bedrooms: prop.bedrooms || '3',
+      bathrooms: prop.bathrooms || '2',
+      stories: prop.stories || 'Two Stories',
+      description: prop.description || '',
+      contactPhone: prop.contact_phone || '076 911 73 98',
+      status: prop.status || 'available',
+      imageUrl: prop.image_url || ''
+    });
+    setPropCoverFile(null);
+    setPropGalleryFiles([]);
+    setPropMsg('');
+    setIsPropModalOpen(true);
+  };
+
+  const handleDeleteProperty = async (propId) => {
+    if (!window.confirm('Are you sure you want to delete this property advertisement?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/admin/properties-for-sale/${propId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchAllData(token);
+      } else {
+        alert('Failed to delete property advertisement.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleTogglePropertyStatus = async (prop, newStatus) => {
+    try {
+      const res = await fetch(`${API_URL}/api/admin/properties-for-sale/${prop.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (res.ok) {
+        fetchAllData(token);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveProperty = async (e) => {
+    e.preventDefault();
+    setIsSubmittingProp(true);
+    setPropMsg('');
+
+    try {
+      const formData = new FormData();
+      formData.append('title', propertyForm.title);
+      formData.append('location', propertyForm.location);
+      formData.append('price', propertyForm.price);
+      formData.append('perches', propertyForm.perches);
+      formData.append('bedrooms', propertyForm.bedrooms);
+      formData.append('bathrooms', propertyForm.bathrooms);
+      formData.append('stories', propertyForm.stories);
+      formData.append('description', propertyForm.description);
+      formData.append('contactPhone', propertyForm.contactPhone);
+      formData.append('status', propertyForm.status);
+      formData.append('imageUrl', propertyForm.imageUrl);
+
+      if (propCoverFile) {
+        formData.append('coverFile', propCoverFile);
+      }
+      if (propGalleryFiles && propGalleryFiles.length > 0) {
+        Array.from(propGalleryFiles).forEach(file => {
+          formData.append('galleryFiles', file);
+        });
+      }
+
+      const url = editingProperty 
+        ? `${API_URL}/api/admin/properties-for-sale/${editingProperty.id}`
+        : `${API_URL}/api/admin/properties-for-sale`;
+
+      const method = editingProperty ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setPropMsg(editingProperty ? 'Property updated successfully!' : 'Property added successfully!');
+        fetchAllData(token);
+        setTimeout(() => {
+          setIsPropModalOpen(false);
+        }, 1200);
+      } else {
+        setPropMsg(data.message || 'Failed to save property.');
+      }
+    } catch (err) {
+      console.error(err);
+      setPropMsg('Server error saving property.');
+    } finally {
+      setIsSubmittingProp(false);
+    }
+  };
+
+  const handleOpenAddShowcase = () => {
+    setEditingShowcase(null);
+    setShowcaseForm({
+      title: '',
+      location: '',
+      category: 'house',
+      tag: 'Rohana Completed Build',
+      description: '',
+      specs: '{\n  "Builder": "Rohana Construction",\n  "Project Status": "100% Completed & Handed Over"\n}',
+      imageUrl: '',
+      galleryUrls: ''
+    });
+    setCoverFile(null);
+    setGalleryFiles([]);
+    setShowcaseMsg('');
+    setIsShowcaseModalOpen(true);
+  };
+
+  const handleOpenEditShowcase = (proj) => {
+    setEditingShowcase(proj);
+    setShowcaseForm({
+      title: proj.title || '',
+      location: proj.location || '',
+      category: proj.category || 'house',
+      tag: proj.tag || 'Rohana Completed Build',
+      description: proj.description || '',
+      specs: proj.specs ? JSON.stringify(proj.specs, null, 2) : '',
+      imageUrl: proj.image || '',
+      galleryUrls: proj.gallery ? JSON.stringify(proj.gallery, null, 2) : ''
+    });
+    setCoverFile(null);
+    setGalleryFiles([]);
+    setShowcaseMsg('');
+    setIsShowcaseModalOpen(true);
+  };
+
+  const handleDeleteShowcase = async (projId) => {
+    if (!window.confirm('Are you sure you want to delete this showcase project from the website?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/admin/showcase-projects/${projId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchAllData(token);
+      } else {
+        alert('Failed to delete showcase project.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveShowcase = async (e) => {
+    e.preventDefault();
+    setIsSubmittingShowcase(true);
+    setShowcaseMsg('');
+
+    try {
+      const formData = new FormData();
+      formData.append('title', showcaseForm.title);
+      formData.append('location', showcaseForm.location);
+      formData.append('category', showcaseForm.category);
+      formData.append('tag', showcaseForm.tag);
+      formData.append('description', showcaseForm.description);
+      formData.append('specs', showcaseForm.specs);
+      formData.append('imageUrl', showcaseForm.imageUrl);
+      formData.append('galleryUrls', showcaseForm.galleryUrls);
+
+      if (coverFile) {
+        formData.append('coverImage', coverFile);
+      }
+      if (galleryFiles && galleryFiles.length > 0) {
+        Array.from(galleryFiles).forEach(file => {
+          formData.append('galleryImages', file);
+        });
+      }
+
+      const url = editingShowcase 
+        ? `${API_URL}/api/admin/showcase-projects/${editingShowcase.id}`
+        : `${API_URL}/api/admin/showcase-projects`;
+      
+      const method = editingShowcase ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setShowcaseMsg('Showcase project saved successfully!');
+        fetchAllData(token);
+        setTimeout(() => {
+          setIsShowcaseModalOpen(false);
+        }, 1000);
+      } else {
+        setShowcaseMsg(data.message || 'Failed to save project');
+      }
+    } catch (err) {
+      setShowcaseMsg('Network error saving project');
+    } finally {
+      setIsSubmittingShowcase(false);
+    }
   };
 
   const handleDeleteInquiry = async (inqId) => {
@@ -335,6 +643,23 @@ export default function AdminDashboard() {
     ],
   };
 
+  const filteredEmployees = employees.filter(emp => {
+    const matchesSearch = (emp.full_name || '').toLowerCase().includes(empSearch.toLowerCase()) ||
+                          (emp.nic || '').toLowerCase().includes(empSearch.toLowerCase()) ||
+                          (emp.phone || '').toLowerCase().includes(empSearch.toLowerCase());
+    const matchesCat = empCategoryFilter === 'all' || emp.category === empCategoryFilter;
+    const matchesStatus = empStatusFilter === 'all' || emp.status === empStatusFilter;
+    return matchesSearch && matchesCat && matchesStatus;
+  });
+
+  const filteredEstimates = estimates.filter(est => {
+    const matchesSearch = (est.customer_name || '').toLowerCase().includes(estSearch.toLowerCase()) ||
+                          (est.service_type || '').toLowerCase().includes(estSearch.toLowerCase()) ||
+                          (est.id ? est.id.toString() : '').includes(estSearch);
+    const matchesStatus = estStatusFilter === 'all' || est.status === estStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <div className="min-h-screen bg-slate-50 pt-20 flex flex-col md:flex-row">
       
@@ -345,13 +670,16 @@ export default function AdminDashboard() {
             <span className="block text-xs uppercase tracking-widest text-amber-500 font-semibold mb-1">Company Console</span>
             <h2 className="font-bold text-lg text-white leading-tight">Administrator</h2>
           </div>
-          <button 
-            onClick={() => fetchAllData(token)} 
-            className="text-slate-400 hover:text-white transition-colors cursor-pointer"
-            title="Refresh Data"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <BackButton variant="subtle" showLabel={false} />
+            <button 
+              onClick={() => fetchAllData(token)} 
+              className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+              title="Refresh Data"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
@@ -360,6 +688,7 @@ export default function AdminDashboard() {
             { id: 'estimates', label: 'Estimates & Inquiries', icon: ClipboardList },
             { id: 'employees', label: 'Employees & Approvals', icon: Users },
             { id: 'projects', label: 'Projects & Tasks', icon: UserCheck },
+            { id: 'propertiesForSale', label: 'Houses For Sale', icon: HouseIcon },
             { id: 'messages', label: 'Unified Inbox', icon: MessageSquare }
           ].map(tab => (
             <button
@@ -380,6 +709,17 @@ export default function AdminDashboard() {
 
       {/* Main Panel Content */}
       <main className="flex-1 p-6 md:p-10 max-w-5xl">
+        <div className="mb-6 flex items-center justify-between">
+          <BackButton variant="default" />
+          {activeTab !== 'overview' && (
+            <button 
+              onClick={() => setActiveTab('overview')}
+              className="text-xs text-amber-600 hover:text-amber-700 font-semibold underline cursor-pointer"
+            >
+              ← Back to Admin Overview
+            </button>
+          )}
+        </div>
         
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
@@ -733,11 +1073,46 @@ export default function AdminDashboard() {
               <p className="text-slate-500 text-sm">Approve pending construction applications and configure their daily wages.</p>
             </div>
 
-            {employees.length === 0 ? (
-              <p className="text-xs text-slate-400 bg-white p-6 border rounded-2xl">No workers registered.</p>
+            {/* Filter & Search Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-wrap gap-3 items-center">
+              <input
+                type="text"
+                placeholder="Search worker by Name, NIC, Phone..."
+                value={empSearch}
+                onChange={(e) => setEmpSearch(e.target.value)}
+                className="flex-1 min-w-[200px] bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+              />
+              <select
+                value={empCategoryFilter}
+                onChange={(e) => setEmpCategoryFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 cursor-pointer"
+              >
+                <option value="all">All Skill Categories</option>
+                <option value="Masonry work">Masonry work</option>
+                <option value="Tile">Tile</option>
+                <option value="House wiring">House wiring</option>
+                <option value="Painting">Painting</option>
+                <option value="Roofing">Roofing</option>
+                <option value="Carpentry">Carpentry</option>
+                <option value="Gardening">Gardening</option>
+              </select>
+              <select
+                value={empStatusFilter}
+                onChange={(e) => setEmpStatusFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 cursor-pointer"
+              >
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending Approval</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+
+            {filteredEmployees.length === 0 ? (
+              <p className="text-xs text-slate-400 bg-white p-6 border rounded-2xl">No workers match your filter/search criteria.</p>
             ) : (
               <div className="space-y-6">
-                {employees.map((emp) => (
+                {filteredEmployees.map((emp) => (
                   <div key={emp.id} className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                       <div>
@@ -1039,7 +1414,264 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* HOUSES & PROPERTIES FOR SALE TAB */}
+        {activeTab === 'propertiesForSale' && (
+          <div className="space-y-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl md:text-3xl font-extrabold text-slate-950">Houses & Properties For Sale</h2>
+                <p className="text-slate-500 text-sm">Manage turnkey property advertisements and ready-built homes displayed on the public website.</p>
+              </div>
+
+              <button
+                onClick={handleOpenAddProperty}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-amber-500/10 cursor-pointer flex items-center justify-center space-x-2 shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add New Property Listing</span>
+              </button>
+            </div>
+
+            {propertiesForSale.length === 0 ? (
+              <div className="bg-white p-12 rounded-3xl border border-slate-100 text-center space-y-3 shadow-sm">
+                <HouseIcon className="h-10 w-10 text-slate-300 mx-auto" />
+                <p className="text-sm font-bold text-slate-600">No property listings created yet.</p>
+                <p className="text-xs text-slate-400">Click "Add New Property Listing" to feature a house or land for sale on the public website.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {propertiesForSale.map(prop => (
+                  <div key={prop.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col justify-between space-y-4 p-5 relative">
+                    <div className="space-y-3">
+                      <div className="relative h-48 rounded-2xl overflow-hidden bg-slate-900">
+                        <img src={prop.image_url} alt={prop.title} className="w-full h-full object-cover" />
+                        <div className="absolute top-3 left-3 flex gap-2">
+                          <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md ${
+                            prop.status === 'sold' ? 'bg-red-500 text-white' : prop.status === 'reserved' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'
+                          }`}>
+                            {prop.status === 'sold' ? 'Sold Out' : prop.status === 'reserved' ? 'Reserved' : 'Available'}
+                          </span>
+                        </div>
+                        <div className="absolute bottom-3 right-3 bg-slate-950/90 text-amber-400 font-extrabold px-3 py-1 rounded-xl text-xs">
+                          LKR {Number(prop.price).toLocaleString()}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{prop.location}</span>
+                        <h3 className="font-extrabold text-slate-900 text-base leading-snug line-clamp-1">{prop.title}</h3>
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{prop.description}</p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-[10px] bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-semibold text-slate-700">
+                        <div><span className="text-slate-400 block font-normal">Land:</span> {prop.perches} Perches</div>
+                        <div><span className="text-slate-400 block font-normal">Beds:</span> {prop.bedrooms} Bedrooms</div>
+                        <div><span className="text-slate-400 block font-normal">Baths:</span> {prop.bathrooms} Baths</div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => handleTogglePropertyStatus(prop, prop.status === 'available' ? 'reserved' : prop.status === 'reserved' ? 'sold' : 'available')}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Status: <span className="capitalize">{prop.status}</span> ↻
+                        </button>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleOpenEditProperty(prop)}
+                          className="bg-slate-900 hover:bg-slate-800 text-white p-2 rounded-xl transition-colors cursor-pointer text-xs flex items-center space-x-1"
+                          title="Edit Listing"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProperty(prop.id)}
+                          className="bg-red-50 hover:bg-red-100 text-red-600 p-2 rounded-xl transition-colors cursor-pointer text-xs"
+                          title="Delete Listing"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
+
+      {/* ADD / EDIT PROPERTY MODAL */}
+      {isPropModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-start justify-center p-4 md:p-6 overflow-y-auto pt-24 pb-12">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-2xl w-full shadow-2xl relative border border-slate-100 p-6 md:p-8 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-amber-500 font-extrabold block">Property Listing Manager</span>
+                <h3 className="text-xl font-black text-slate-950">
+                  {editingProperty ? 'Edit Property Advertisement' : 'Add New Property For Sale'}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setIsPropModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-2 rounded-full cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {propMsg && (
+              <div className={`p-3 rounded-xl text-xs font-bold ${
+                propMsg.includes('successfully') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                {propMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProperty} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Property Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={propertyForm.title}
+                  onChange={(e) => setPropertyForm({ ...propertyForm, title: e.target.value })}
+                  placeholder="e.g. Modern 2-Story Luxury Residence in Piliyandala"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Location *</label>
+                  <input
+                    type="text"
+                    required
+                    value={propertyForm.location}
+                    onChange={(e) => setPropertyForm({ ...propertyForm, location: e.target.value })}
+                    placeholder="e.g. Piliyandala, Western Province"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Price (LKR) *</label>
+                  <input
+                    type="number"
+                    required
+                    value={propertyForm.price}
+                    onChange={(e) => setPropertyForm({ ...propertyForm, price: e.target.value })}
+                    placeholder="e.g. 34500000"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Land (Perches)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={propertyForm.perches}
+                    onChange={(e) => setPropertyForm({ ...propertyForm, perches: e.target.value })}
+                    placeholder="10.5"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Bedrooms</label>
+                  <input
+                    type="number"
+                    value={propertyForm.bedrooms}
+                    onChange={(e) => setPropertyForm({ ...propertyForm, bedrooms: e.target.value })}
+                    placeholder="4"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Bathrooms</label>
+                  <input
+                    type="number"
+                    value={propertyForm.bathrooms}
+                    onChange={(e) => setPropertyForm({ ...propertyForm, bathrooms: e.target.value })}
+                    placeholder="3"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Status</label>
+                  <select
+                    value={propertyForm.status}
+                    onChange={(e) => setPropertyForm({ ...propertyForm, status: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="available">Available / For Sale</option>
+                    <option value="reserved">Reserved</option>
+                    <option value="sold">Sold Out</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Description *</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={propertyForm.description}
+                  onChange={(e) => setPropertyForm({ ...propertyForm, description: e.target.value })}
+                  placeholder="Describe house features, finishes, amenities..."
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500 resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Upload Main Cover Photo</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setPropCoverFile(e.target.files[0])}
+                    className="w-full text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-2 cursor-pointer"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Upload Additional Gallery Photos</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => setPropGalleryFiles(e.target.files)}
+                    className="w-full text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-2 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPropModalOpen(false)}
+                  className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingProp}
+                  className="w-1/2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black py-3 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                >
+                  {isSubmittingProp ? 'Saving Listing...' : editingProperty ? 'Update Listing' : 'Publish Listing'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
