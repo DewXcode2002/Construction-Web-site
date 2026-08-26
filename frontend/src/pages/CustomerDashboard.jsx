@@ -950,77 +950,79 @@ export default function CustomerDashboard() {
                   <span className="text-base font-extrabold text-slate-900">{serviceType}</span>
                 </div>
 
-                {/* STEP 1: ARCHITECTURAL PLAN OPTIONS */}
-                <div className="space-y-3">
-                  <label className="block text-xs font-extrabold text-slate-900 uppercase tracking-wider">1. Architectural Land Plan Option</label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPlanOption('upload')}
-                      className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
-                        planOption === 'upload'
-                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
-                          : 'bg-white border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <span className="block text-xs font-bold text-slate-900">📄 Upload My Land Plan</span>
-                      <span className="block text-[10px] text-slate-500">I have my land plan drawing & want physical estimation.</span>
-                    </button>
+                {/* STEP 1: ARCHITECTURAL PLAN OPTIONS (Only for services that require land/building plan drawings) */}
+                {['Residential Construction', 'Commercial Buildings', 'House Design'].includes(serviceType) && (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-extrabold text-slate-900 uppercase tracking-wider">1. Architectural Land Plan Option</label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setPlanOption('upload')}
+                        className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
+                          planOption === 'upload'
+                            ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
+                            : 'bg-white border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="block text-xs font-bold text-slate-900">📄 Upload My Land Plan</span>
+                        <span className="block text-[10px] text-slate-500">I have my land plan drawing & want physical estimation.</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setPlanOption('request_design')}
-                      className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
-                        planOption === 'request_design'
-                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
-                          : 'bg-white border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <span className="block text-xs font-bold text-slate-900">✏️ Request Plan Design</span>
-                      <span className="block text-[10px] text-slate-500">I don't have a plan — Rohana team will draw & estimate.</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setPlanOption('request_design')}
+                        className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
+                          planOption === 'request_design'
+                            ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
+                            : 'bg-white border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="block text-xs font-bold text-slate-900">✏️ Request Plan Design</span>
+                        <span className="block text-[10px] text-slate-500">I don't have a plan — Rohana team will draw & estimate.</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setPlanOption('template')}
-                      className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
-                        planOption === 'template'
-                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
-                          : 'bg-white border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <span className="block text-xs font-bold text-slate-900">🏛️ Pick Template Plan</span>
-                      <span className="block text-[10px] text-slate-500">Select one of Rohana's pre-designed house plans.</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Plan Upload Field if planOption === 'upload' */}
-                {planOption === 'upload' && (
-                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2">
-                    <label className="block text-xs font-bold text-slate-700 uppercase">Upload Your Land Plan Drawing (PDF / Image)</label>
-                    <div className="flex items-center space-x-3">
-                      <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFileUpload} className="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-800 file:cursor-pointer" />
-                      {clientPlanUrl && <span className="text-[10px] text-emerald-600 font-bold">✔ Uploaded</span>}
+                      <button
+                        type="button"
+                        onClick={() => setPlanOption('template')}
+                        className={`p-4 rounded-xl border text-left transition-all cursor-pointer space-y-1 ${
+                          planOption === 'template'
+                            ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/20'
+                            : 'bg-white border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="block text-xs font-bold text-slate-900">🏛️ Pick Template Plan</span>
+                        <span className="block text-[10px] text-slate-500">Select one of Rohana's pre-designed house plans.</span>
+                      </button>
                     </div>
-                    {fileMsg && <span className="block text-[10px] text-emerald-600 font-bold">{fileMsg}</span>}
-                  </div>
-                )}
 
-                {/* Template Selection if planOption === 'template' */}
-                {planOption === 'template' && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Select House Plan Template</label>
-                    <select
-                      value={selectedPlanId || ''}
-                      onChange={e => setSelectedPlanId(e.target.value ? parseInt(e.target.value) : null)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer"
-                    >
-                      <option value="">-- Choose a Pre-drawn House Plan --</option>
-                      {plans.map(p => (
-                        <option key={p.id} value={p.id}>{p.title} ({p.bedrooms} Beds, {p.bathrooms} Baths, {p.floors} Floors) — ~LKR {p.price_estimate?.toLocaleString()}</option>
-                      ))}
-                    </select>
+                    {/* Plan Upload Field if planOption === 'upload' */}
+                    {planOption === 'upload' && (
+                      <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2 mt-3">
+                        <label className="block text-xs font-bold text-slate-700 uppercase">Upload Your Land Plan Drawing (PDF / Image)</label>
+                        <div className="flex items-center space-x-3">
+                          <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={handleFileUpload} className="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-900 file:text-white hover:file:bg-slate-800 file:cursor-pointer" />
+                          {clientPlanUrl && <span className="text-[10px] text-emerald-600 font-bold">✔ Uploaded</span>}
+                        </div>
+                        {fileMsg && <span className="block text-[10px] text-emerald-600 font-bold">{fileMsg}</span>}
+                      </div>
+                    )}
+
+                    {/* Template Selection if planOption === 'template' */}
+                    {planOption === 'template' && (
+                      <div className="mt-3">
+                        <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Select House Plan Template</label>
+                        <select
+                          value={selectedPlanId || ''}
+                          onChange={e => setSelectedPlanId(e.target.value ? parseInt(e.target.value) : null)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-500 text-slate-800 cursor-pointer"
+                        >
+                          <option value="">-- Choose a Pre-drawn House Plan --</option>
+                          {plans.map(p => (
+                            <option key={p.id} value={p.id}>{p.title} ({p.bedrooms} Beds, {p.bathrooms} Baths, {p.floors} Floors) — ~LKR {p.price_estimate?.toLocaleString()}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1209,8 +1211,8 @@ export default function CustomerDashboard() {
                   </>
                 )}
 
-                {/* ====================== ELECTRICAL WORK FIELDS ====================== */}
-                {serviceType === 'Electrical Work' && (
+                {/* ====================== ELECTRICAL WIRING FIELDS ====================== */}
+                {(serviceType === 'Electrical Wiring' || serviceType === 'Electrical Work') && (
                   <>
                     <div>
                       <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Number of Wiring Points</label>
@@ -1414,58 +1416,254 @@ export default function CustomerDashboard() {
                   </>
                 )}
 
-                {/* STEP 2: MATERIAL BRANDS & SPECIFICATION PREFERENCES */}
+                {/* STEP 2: SERVICE-SPECIFIC MATERIAL BRANDS & SPECIFICATION PREFERENCES */}
                 <div className="border-t border-slate-100 pt-6 space-y-4">
                   <label className="block text-xs font-extrabold text-slate-900 uppercase tracking-wider">2. Material Brands & Specifications</label>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tile Brand / Finish</label>
-                      <select value={materialBrands.tileBrand} onChange={e => updateBrand('tileBrand', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
-                        <option>Rocell Luxury Porcelain</option>
-                        <option>Lanka Tiles Standard</option>
-                        <option>Imported Large Format Tiles</option>
-                        <option>Terrazzo / Granito Finish</option>
-                        <option>Non-Slip Outdoor Tiles</option>
-                      </select>
-                    </div>
+                  {/* Full Brands Grid for Core Construction / Building Services */}
+                  {['Residential Construction', 'Commercial Buildings', 'House Design', 'Renovation'].includes(serviceType) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tile Brand / Finish</label>
+                        <select value={materialBrands.tileBrand} onChange={e => updateBrand('tileBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Rocell Luxury Porcelain</option>
+                          <option>Lanka Tiles Standard</option>
+                          <option>Imported Large Format Tiles</option>
+                          <option>Terrazzo / Granito Finish</option>
+                          <option>Non-Slip Outdoor Tiles</option>
+                        </select>
+                      </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Wood Species (Doors & Windows)</label>
-                      <select value={materialBrands.woodType} onChange={e => updateBrand('woodType', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
-                        <option>Teak Wood (Senior Grade)</option>
-                        <option>Mahogany Hardwood</option>
-                        <option>Jak Wood</option>
-                        <option>Nadun / Kumbuk</option>
-                        <option>Treated Timber Frame</option>
-                      </select>
-                    </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Wood Species (Doors & Windows)</label>
+                        <select value={materialBrands.woodType} onChange={e => updateBrand('woodType', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Teak Wood (Senior Grade)</option>
+                          <option>Mahogany Hardwood</option>
+                          <option>Jak Wood</option>
+                          <option>Nadun / Kumbuk</option>
+                          <option>Treated Timber Frame</option>
+                        </select>
+                      </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Sanitaryware & Fittings</label>
-                      <select value={materialBrands.sanitarywareBrand} onChange={e => updateBrand('sanitarywareBrand', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
-                        <option>Rocell Premium Fittings</option>
-                        <option>American Standard</option>
-                        <option>Kohler Luxury Line</option>
-                        <option>Cotto Sanitaryware</option>
-                        <option>Grohe German Brassware</option>
-                      </select>
-                    </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Sanitaryware & Fittings</label>
+                        <select value={materialBrands.sanitarywareBrand} onChange={e => updateBrand('sanitarywareBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Rocell Premium Fittings</option>
+                          <option>American Standard</option>
+                          <option>Kohler Luxury Line</option>
+                          <option>Cotto Sanitaryware</option>
+                          <option>Grohe German Brassware</option>
+                        </select>
+                      </div>
 
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Paint & Electricals</label>
-                      <select value={materialBrands.paintBrand} onChange={e => updateBrand('paintBrand', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
-                        <option>Dulux Paint + Orange Electric</option>
-                        <option>Nippon Paint + ACL Cables</option>
-                        <option>Jotun WeatherShield + Clipsal</option>
-                        <option>Eco Weather Paint + Siemens</option>
-                      </select>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Paint & Electricals</label>
+                        <select value={materialBrands.paintBrand} onChange={e => updateBrand('paintBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Dulux Paint + Orange Electric</option>
+                          <option>Nippon Paint + ACL Cables</option>
+                          <option>Jotun WeatherShield + Clipsal</option>
+                          <option>Eco Weather Paint + Siemens</option>
+                        </select>
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Electrical Wiring specific brands */}
+                  {['Electrical Wiring', 'Electrical Work'].includes(serviceType) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Cable & Wire Brand</label>
+                        <select value={materialBrands.electricalBrand || 'ACL Cables'} onChange={e => updateBrand('electricalBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>ACL Cables (High Conductive Copper)</option>
+                          <option>Kelani Cables Premium</option>
+                          <option>Sierra Cables</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Switches & DB Enclosures</label>
+                        <select value={materialBrands.switchBrand || 'Orange Electric'} onChange={e => updateBrand('switchBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Orange Electric (Designer Series)</option>
+                          <option>Clipsal / Schneider Electric</option>
+                          <option>Siemens Breakers</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Painting specific brands */}
+                  {serviceType === 'Painting' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Paint Brand & Type</label>
+                        <select value={materialBrands.paintBrand || 'Dulux'} onChange={e => updateBrand('paintBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Dulux Premium Silk & WeatherShield</option>
+                          <option>Nippon Paint Weathergard</option>
+                          <option>Jotun Jotashield Extreme</option>
+                          <option>Robbialac Acrylic Emulsion</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Finish Texture</label>
+                        <select value={serviceDetails.paintFinish || 'Matte Silk'} onChange={e => updateDetail('paintFinish', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Matte Silk Finish</option>
+                          <option>High Gloss Enamel</option>
+                          <option>Stipple / Texture Coat</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Plumbing specific brands */}
+                  {serviceType === 'Plumbing' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Piping & Fittings Brand</label>
+                        <select value={materialBrands.pipeBrand || 'S-Lon'} onChange={e => updateBrand('pipeBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>S-Lon Heavy Duty PVC</option>
+                          <option>National PVC</option>
+                          <option>Kuralon / Watertec</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Sanitaryware & Taps</label>
+                        <select value={materialBrands.sanitarywareBrand || 'Rocell'} onChange={e => updateBrand('sanitarywareBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Rocell Premium Brassware</option>
+                          <option>American Standard</option>
+                          <option>Grohe German Fittings</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tile Work specific brands */}
+                  {serviceType === 'Tile Work' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tile Manufacturer</label>
+                        <select value={materialBrands.tileBrand || 'Rocell'} onChange={e => updateBrand('tileBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Rocell Luxury Porcelain</option>
+                          <option>Lanka Tiles Standard</option>
+                          <option>Macktiles High-Density</option>
+                          <option>Imported Italian/Spanish Porcelain</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Tile Adhesive & Grout</label>
+                        <select value={serviceDetails.tileAdhesive || 'High-Bond Polymer Grout'} onChange={e => updateDetail('tileAdhesive', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>High-Bond Polymer Grout (Waterproof)</option>
+                          <option>Epoxy Stain-Proof Grout</option>
+                          <option>Standard Tile Mortar</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Carpentry specific brands */}
+                  {serviceType === 'Carpentry' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Wood Species</label>
+                        <select value={materialBrands.woodType || 'Teak Wood'} onChange={e => updateBrand('woodType', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Teak Wood (Senior Grade)</option>
+                          <option>Mahogany Hardwood</option>
+                          <option>Jak Wood</option>
+                          <option>Nadun / Kumbuk</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Timber Treatment & Lock Hardware</label>
+                        <select value={serviceDetails.hardwareBrand || 'Yale / Union Locks'} onChange={e => updateDetail('hardwareBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Yale / Union Mortise Locks</option>
+                          <option>Häfele Premium Hardware</option>
+                          <option>Stainless Steel Hinges & Handles</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Slab Shuttering specific brands */}
+                  {['Slab Shuttering (Satalin)', 'Slab Shuttering'].includes(serviceType) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Propping System</label>
+                        <select value={serviceDetails.proppingBrand || 'Adjustable Steel Props'} onChange={e => updateDetail('proppingBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Adjustable Heavy Steel Props</option>
+                          <option>Tubular Scaffolding System</option>
+                          <option>Traditional Bamboo & Timber Support</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Concrete Release Agent</label>
+                        <select value={serviceDetails.releaseAgent || 'Eco Chemical Release Agent'} onChange={e => updateDetail('releaseAgent', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Eco Chemical Release Agent (Smooth Finish)</option>
+                          <option>Standard Mold Oil</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Landscaping specific brands */}
+                  {serviceType === 'Landscaping' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Paving Stone Supplier</label>
+                        <select value={materialBrands.pavingBrand || 'Interlocking Concrete Blocks'} onChange={e => updateBrand('pavingBrand', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Interlocking Concrete Blocks (Heavy Load)</option>
+                          <option>Natural Granite Cobblestone</option>
+                          <option>Terracotta Paving Bricks</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Irrigation System</label>
+                        <select value={serviceDetails.irrigationType || 'Automated Drip & Sprinkler'} onChange={e => updateDetail('irrigationType', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>Automated Drip & Sprinkler Network</option>
+                          <option>Manual Garden Hydrant Outlets</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Structural Engineering specific testing */}
+                  {serviceType === 'Structural Engineering' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Engineering Compliance Standard</label>
+                        <select value={serviceDetails.standard || 'SLSI / ICTAD (CIDA) Standards'} onChange={e => updateDetail('standard', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>SLSI / ICTAD (CIDA) Standards</option>
+                          <option>British BS 8110 Structural Code</option>
+                          <option>Eurocode 2 Concrete Design</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Lab Testing Authority</label>
+                        <select value={serviceDetails.labAuthority || 'University Structural Lab'} onChange={e => updateDetail('labAuthority', e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-amber-500">
+                          <option>University Structural Testing Lab</option>
+                          <option>Rohana Certified In-House Engineers</option>
+                          <option>Independent Accredited Testing Firm</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* STEP 3: CONTACT METHOD & SPECIAL INSTRUCTIONS */}
@@ -1632,10 +1830,28 @@ export default function CustomerDashboard() {
                       <div className="flex justify-between"><span className="text-slate-400">Bathrooms</span><span className="font-bold">{bathrooms}</span></div>
                     </>
                   )}
-                  {serviceType === 'Electrical Work' && (
+                  {['Electrical Wiring', 'Electrical Work'].includes(serviceType) && (
                     <>
                       <div className="flex justify-between"><span className="text-slate-400">Wiring Points</span><span className="font-bold">{serviceDetails.wiringPoints||10}</span></div>
                       <div className="flex justify-between"><span className="text-slate-400">Phase</span><span className="font-bold">{serviceDetails.phaseType||'Single Phase'}</span></div>
+                    </>
+                  )}
+                  {['Slab Shuttering (Satalin)', 'Slab Shuttering'].includes(serviceType) && (
+                    <>
+                      <div className="flex justify-between"><span className="text-slate-400">Slab Area</span><span className="font-bold">{serviceDetails.slabSqFt||800} sq ft</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Slab Level</span><span className="font-bold">{serviceDetails.slabLevel||'1st Floor'}</span></div>
+                    </>
+                  )}
+                  {serviceType === 'Tile Work' && (
+                    <>
+                      <div className="flex justify-between"><span className="text-slate-400">Tiling Area</span><span className="font-bold">{serviceDetails.tileSqFt||500} sq ft</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Tile Type</span><span className="font-bold">{serviceDetails.tileType||'2x2 Porcelain'}</span></div>
+                    </>
+                  )}
+                  {serviceType === 'Carpentry' && (
+                    <>
+                      <div className="flex justify-between"><span className="text-slate-400">Carpentry Scope</span><span className="font-bold">{serviceDetails.carpentryScope||'Teak Doors & Windows'}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Timber Species</span><span className="font-bold">{serviceDetails.timberType||'Seasoned Teak'}</span></div>
                     </>
                   )}
                   {serviceType === 'Plumbing' && (
