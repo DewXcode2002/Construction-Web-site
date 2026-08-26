@@ -284,17 +284,26 @@ function seedDefaultData() {
       console.log('Default houses for sale seeded.');
     }
   });
-  // Check if admin already exists
+  // Check if admin already exists and update/seed credentials
   db.get("SELECT * FROM users WHERE role = 'admin'", async (err, row) => {
     if (err) return console.error(err);
+    const adminPasswordHash = await bcrypt.hash('AdMali@123', 10);
     if (!row) {
-      const adminPasswordHash = await bcrypt.hash('admin123', 10);
       db.run(
         "INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, ?)",
-        ['admin', adminPasswordHash, 'admin@rohana.com', 'admin'],
+        ['admin_Dew', adminPasswordHash, 'admindew@gamil.com', 'admin'],
         function (err) {
           if (err) console.error('Admin seeding failed:', err.message);
-          else console.log('Admin user seeded (Username: admin, Password: admin123)');
+          else console.log('Admin user seeded (Username: admin_Dew, Password: AdMali@123)');
+        }
+      );
+    } else {
+      db.run(
+        "UPDATE users SET username = ?, password = ?, email = ? WHERE role = 'admin'",
+        ['admin_Dew', adminPasswordHash, 'admindew@gamil.com'],
+        function (err) {
+          if (err) console.error('Admin update failed:', err.message);
+          else console.log('Admin credentials updated (Username: admin_Dew, Password: AdMali@123)');
         }
       );
     }

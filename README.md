@@ -106,5 +106,6 @@ The database uses SQLite with the following core tables:
 ## 🔐 Default Credentials (Seeded Data)
 
 *   **Administrator Account:**
-    *   **Username:** `admin`
-    *   **Password:** `admin123`
+    *   **Username:** `admin_Dew`
+    *   **Email:** `admindew@gamil.com`
+    *   **Password:** `AdMali@123`
