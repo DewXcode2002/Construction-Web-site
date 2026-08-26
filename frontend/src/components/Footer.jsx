@@ -56,7 +56,7 @@ export default function Footer() {
                 <Phone className="h-4 w-4" />
               </a>
               <a
-                href="mailto:admindew@gamil.com"
+                href="mailto:dewhanmalinda123@gmail.com"
                 className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 flex items-center justify-center hover:bg-white hover:text-slate-950 transition-all cursor-pointer shadow-sm"
                 title="Email Us"
               >
@@ -130,7 +130,7 @@ export default function Footer() {
               </div>
               <div className="flex items-center space-x-2">
                 <Mail className="h-4 w-4 text-amber-500 shrink-0" />
-                <a href="mailto:admindew@gamil.com" className="hover:text-amber-400 transition-colors truncate">admindew@gamil.com</a>
+                <a href="mailto:dewhanmalinda123@gmail.com" className="hover:text-amber-400 transition-colors truncate">dewhanmalinda123@gmail.com</a>
               </div>
               <div className="pt-2">
                 <span className="inline-flex items-center space-x-1 text-[10px] uppercase tracking-wider font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full">

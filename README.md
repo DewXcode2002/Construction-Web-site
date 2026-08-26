@@ -107,5 +107,5 @@ The database uses SQLite with the following core tables:
 
 *   **Administrator Account:**
     *   **Username:** `admin_Dew`
-    *   **Email:** `admindew@gamil.com`
+    *   **Email:** `dewhanmalinda123@gmail.com`
     *   **Password:** `AdMali@123`
