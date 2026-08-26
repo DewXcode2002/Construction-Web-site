@@ -1698,7 +1698,7 @@ export default function CustomerDashboard() {
               </div>
               <div className="flex items-center space-x-2">
                 <Mail className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                <span>rohanaconstruction@gmail.com</span>
+                <a href="mailto:admindew@gamil.com" className="hover:text-amber-400 transition-colors">admindew@gamil.com</a>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="h-2 w-2 bg-emerald-400 rounded-full animate-pulse shrink-0"></div>
