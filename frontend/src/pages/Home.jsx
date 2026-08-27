@@ -706,15 +706,15 @@ export default function Home() {
               <span className="block text-4xl md:text-5xl font-black text-amber-500">100+</span>
               <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Completed Projects</span>
             </div>
+            <div className="space-y-1">
+              <span className="block text-4xl md:text-5xl font-black text-amber-500">100%</span>
+              <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Customer Satisfaction</span>
+            </div>
             <div className="space-y-1 flex flex-col items-center justify-center">
               <div className="h-10 md:h-12 flex items-center justify-center">
                 <Users className="w-10 h-10 text-amber-500" />
               </div>
               <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Skilled Employees</span>
-            </div>
-            <div className="space-y-1">
-              <span className="block text-4xl md:text-5xl font-black text-amber-500">100%</span>
-              <span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Customer Satisfaction</span>
             </div>
           </div>
         </div>
