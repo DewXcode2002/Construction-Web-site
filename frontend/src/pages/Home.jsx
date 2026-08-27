@@ -14,7 +14,7 @@ import Footer from '../components/Footer';
 
 const getImageUrl = (url) => {
   if (!url) return '/images/rohana-completed-house/house1.jpg';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
   if (url.startsWith('/uploads')) return `${API_URL}${url}`;
   return url;
 };
@@ -1280,7 +1280,9 @@ export default function Home() {
                 const matchesCat = propCategoryFilter === 'all' || (p.property_type || 'house') === propCategoryFilter;
                 return matchesSearch && matchesStatus && matchesCat;
               }).map((prop) => {
-                const isLand = prop.property_type === 'land';
+                const isLand = prop.property_type?.toLowerCase() === 'land' || 
+                               (Number(prop.bedrooms) === 0 && Number(prop.bathrooms) === 0) ||
+                               (prop.title && prop.title.toLowerCase().includes('land'));
                 let featureList = [];
                 try {
                   if (prop.features) featureList = typeof prop.features === 'string' ? JSON.parse(prop.features) : prop.features;
@@ -1329,7 +1331,7 @@ export default function Home() {
                           <span className="truncate">{prop.location}</span>
                         </div>
                         <h3 className="font-extrabold text-lg text-white leading-snug line-clamp-2">{prop.title}</h3>
-                        <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed font-normal">{prop.description}</p>
+                        <p className="text-slate-400 text-xs line-clamp-3 leading-relaxed font-normal whitespace-pre-line">{prop.description}</p>
                       </div>
 
                       {/* Spec Pills */}
@@ -2475,10 +2477,14 @@ export default function Home() {
                   <p className="text-xs text-slate-500 font-semibold">{selectedPropertyModal.location}</p>
                 </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed font-normal">{selectedPropertyModal.description}</p>
+                <p className="text-xs text-slate-600 leading-relaxed font-normal whitespace-pre-line">{selectedPropertyModal.description}</p>
 
                 {/* Technical Specs Table / Features */}
-                {selectedPropertyModal.property_type === 'land' ? (
+                {(
+                  selectedPropertyModal.property_type?.toLowerCase() === 'land' || 
+                  (Number(selectedPropertyModal.bedrooms) === 0 && Number(selectedPropertyModal.bathrooms) === 0) ||
+                  (selectedPropertyModal.title && selectedPropertyModal.title.toLowerCase().includes('land'))
+                ) ? (
                   <div className="space-y-3">
                     <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 space-y-2 text-xs">
                       <div className="flex justify-between border-b border-amber-200/80 pb-1.5">

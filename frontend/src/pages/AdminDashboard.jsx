@@ -12,7 +12,7 @@ import BackButton from '../components/BackButton';
 
 const getImageUrl = (url) => {
   if (!url) return '/images/rohana-completed-house/house1.jpg';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
   if (url.startsWith('/uploads')) return `${API_URL}${url}`;
   return url;
 };
@@ -1469,38 +1469,43 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {propertiesForSale.map(prop => (
-                  <div key={prop.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col justify-between space-y-4 p-5 relative">
-                    <div className="space-y-3">
-                      <div className="relative h-48 rounded-2xl overflow-hidden bg-slate-900">
-                        <img src={getImageUrl(prop.image_url)} alt={prop.title} className="w-full h-full object-cover" />
-                        <div className="absolute top-3 left-3 flex gap-2">
-                          <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md ${
-                            prop.status === 'sold' ? 'bg-red-500 text-white' : prop.status === 'reserved' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'
-                          }`}>
-                            {prop.status === 'sold' ? 'Sold Out' : prop.status === 'reserved' ? 'Reserved' : 'Available'}
-                          </span>
-                        </div>
-                        <div className="absolute bottom-3 right-3 bg-slate-950/90 text-amber-400 font-extrabold px-3 py-1 rounded-xl text-xs">
-                          LKR {Number(prop.price).toLocaleString()}
-                        </div>
-                      </div>
+                {propertiesForSale.map(prop => {
+                  const isLandItem = prop.property_type?.toLowerCase() === 'land' || 
+                                     (Number(prop.bedrooms) === 0 && Number(prop.bathrooms) === 0) ||
+                                     (prop.title && prop.title.toLowerCase().includes('land'));
 
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{prop.location}</span>
-                        <h3 className="font-extrabold text-slate-900 text-base leading-snug line-clamp-1">{prop.title}</h3>
-                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{prop.description}</p>
-                      </div>
+                  return (
+                    <div key={prop.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col justify-between space-y-4 p-5 relative">
+                      <div className="space-y-3">
+                        <div className="relative h-48 rounded-2xl overflow-hidden bg-slate-900">
+                          <img src={getImageUrl(prop.image_url)} alt={prop.title} className="w-full h-full object-cover" />
+                          <div className="absolute top-3 left-3 flex gap-2">
+                            <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md ${
+                              prop.status === 'sold' ? 'bg-red-500 text-white' : prop.status === 'reserved' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'
+                            }`}>
+                              {prop.status === 'sold' ? 'Sold Out' : prop.status === 'reserved' ? 'Reserved' : 'Available'}
+                            </span>
+                          </div>
+                          <div className="absolute bottom-3 right-3 bg-slate-950/90 text-amber-400 font-extrabold px-3 py-1 rounded-xl text-xs">
+                            LKR {Number(prop.price).toLocaleString()}
+                          </div>
+                        </div>
 
-                      <div className="grid grid-cols-3 gap-2 text-[10px] bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-semibold text-slate-700">
-                        <div><span className="text-slate-400 block font-normal">Category:</span> {prop.property_type === 'land' ? '🌿 Land' : '🏡 House'}</div>
-                        <div><span className="text-slate-400 block font-normal">Land Size:</span> {prop.perches} Perches</div>
-                        <div>
-                          <span className="text-slate-400 block font-normal">{prop.property_type === 'land' ? 'Type:' : 'Beds/Baths:'}</span> 
-                          {prop.property_type === 'land' ? (prop.land_type || 'Bare Land') : `${prop.bedrooms}B / ${prop.bathrooms}Ba`}
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">{prop.location}</span>
+                          <h3 className="font-extrabold text-slate-900 text-base leading-snug line-clamp-1">{prop.title}</h3>
+                          <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed whitespace-pre-line">{prop.description}</p>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 text-[10px] bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-semibold text-slate-700">
+                          <div><span className="text-slate-400 block font-normal">Category:</span> {isLandItem ? '🌿 Land' : '🏡 House'}</div>
+                          <div><span className="text-slate-400 block font-normal">Land Size:</span> {prop.perches} Perches</div>
+                          <div>
+                            <span className="text-slate-400 block font-normal">{isLandItem ? 'Type:' : 'Beds/Baths:'}</span> 
+                            {isLandItem ? (prop.land_type || 'Bare Land') : `${prop.bedrooms}B / ${prop.bathrooms}Ba`}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                       <div className="flex gap-1.5">
@@ -1531,8 +1536,9 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
+            </div>
             )}
           </div>
         )}
@@ -1786,9 +1792,20 @@ export default function AdminDashboard() {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Cover Photo URL (Optional Direct Link)</label>
+                <input
+                  type="text"
+                  value={propertyForm.imageUrl}
+                  onChange={(e) => setPropertyForm({ ...propertyForm, imageUrl: e.target.value })}
+                  placeholder="https://... or paste direct image URL"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Upload Main Cover Photo</label>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Upload Main Cover Photo File</label>
                   <input
                     type="file"
                     accept="image/*"

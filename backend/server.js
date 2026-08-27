@@ -1039,7 +1039,22 @@ app.get('/api/properties-for-sale', async (req, res) => {
   }
 });
 
-// Admin: Add new house for sale
+// Helper function to convert uploaded multer file to Base64 data URL for Vercel/Production compatibility
+const fileToBase64 = (file) => {
+  try {
+    if (file.buffer) {
+      return `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+    } else if (file.path && fs.existsSync(file.path)) {
+      const fileData = fs.readFileSync(file.path);
+      return `data:${file.mimetype || 'image/jpeg'};base64,${fileData.toString('base64')}`;
+    }
+  } catch (e) {
+    console.error('Error converting file to base64:', e);
+  }
+  return file.filename ? `/uploads/${file.filename}` : '';
+};
+
+// Admin: Add new house/land for sale
 app.post('/api/admin/properties-for-sale', authenticateToken, upload.fields([
   { name: 'coverFile', maxCount: 1 },
   { name: 'galleryFiles', maxCount: 10 }
@@ -1054,13 +1069,13 @@ app.post('/api/admin/properties-for-sale', authenticateToken, upload.fields([
 
   let coverPath = imageUrl || '/images/rohana-completed-house/house1.jpg';
   if (req.files && req.files.coverFile && req.files.coverFile[0]) {
-    coverPath = `/uploads/${req.files.coverFile[0].filename}`;
+    coverPath = fileToBase64(req.files.coverFile[0]);
   }
 
   let galleryArr = [coverPath];
-  if (req.files && req.files.galleryFiles) {
+  if (req.files && req.files.galleryFiles && req.files.galleryFiles.length > 0) {
     req.files.galleryFiles.forEach(f => {
-      galleryArr.push(`/uploads/${f.filename}`);
+      galleryArr.push(fileToBase64(f));
     });
   }
 
@@ -1110,7 +1125,7 @@ app.put('/api/admin/properties-for-sale/:id', authenticateToken, upload.fields([
 
     let coverPath = existing.image_url;
     if (req.files && req.files.coverFile && req.files.coverFile[0]) {
-      coverPath = `/uploads/${req.files.coverFile[0].filename}`;
+      coverPath = fileToBase64(req.files.coverFile[0]);
     } else if (imageUrl) {
       coverPath = imageUrl;
     }
@@ -1122,7 +1137,7 @@ app.put('/api/admin/properties-for-sale/:id', authenticateToken, upload.fields([
 
     if (req.files && req.files.galleryFiles && req.files.galleryFiles.length > 0) {
       galleryArr = [coverPath];
-      req.files.galleryFiles.forEach(f => galleryArr.push(`/uploads/${f.filename}`));
+      req.files.galleryFiles.forEach(f => galleryArr.push(fileToBase64(f)));
     }
 
     await dbRun(
@@ -1138,6 +1153,16 @@ app.put('/api/admin/properties-for-sale/:id', authenticateToken, upload.fields([
         bathrooms !== undefined ? parseInt(bathrooms) : existing.bathrooms,
         stories !== undefined ? stories : existing.stories,
         description !== undefined ? description : existing.description,
+        coverPath,
+        JSON.stringify(galleryArr),
+        contactPhone !== undefined ? contactPhone : existing.contact_phone,
+        status !== undefined ? status : existing.status,
+        propertyType !== undefined ? propertyType : (existing.property_type || 'house'),
+        landType !== undefined ? landType : (existing.land_type || 'Residential Plot'),
+        features !== undefined ? (typeof features === 'string' ? features : JSON.stringify(features)) : existing.features,
+        propId
+      ]
+    );
         coverPath,
         JSON.stringify(galleryArr),
         contactPhone !== undefined ? contactPhone : existing.contact_phone,
