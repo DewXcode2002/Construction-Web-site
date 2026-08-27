@@ -12,6 +12,13 @@ import { useLanguage } from '../context/LanguageContext';
 import BackButton from '../components/BackButton';
 import Footer from '../components/Footer';
 
+const getImageUrl = (url) => {
+  if (!url) return '/images/rohana-completed-house/house1.jpg';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/uploads')) return `${API_URL}${url}`;
+  return url;
+};
+
 export default function Home() {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -33,6 +40,7 @@ export default function Home() {
   // Property Marketplace Search & Filter State
   const [propSearchTerm, setPropSearchTerm] = useState('');
   const [propStatusFilter, setPropStatusFilter] = useState('all');
+  const [propCategoryFilter, setPropCategoryFilter] = useState('all'); // 'all', 'house', 'land', 'commercial'
 
   const [contactName, setContactName] = useState('');
   const [contactMessage, setContactMessage] = useState('');
@@ -1202,25 +1210,50 @@ export default function Home() {
               )}
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 justify-center">
-              {[
-                { id: 'all', label: 'All Properties' },
-                { id: 'available', label: 'Available' },
-                { id: 'reserved', label: 'Reserved' },
-                { id: 'sold', label: 'Sold Out' }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setPropStatusFilter(tab.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                    propStatusFilter === tab.id
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                      : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            {/* Category & Status Filter Tabs */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto pb-1 md:pb-0 justify-center">
+              {/* Category Filter */}
+              <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-2xl border border-slate-800">
+                {[
+                  { id: 'all', label: 'All Properties' },
+                  { id: 'house', label: '🏡 Houses' },
+                  { id: 'land', label: '🌿 Lands & Plots' }
+                ].map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setPropCategoryFilter(cat.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      propCategoryFilter === cat.id
+                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-2xl border border-slate-800">
+                {[
+                  { id: 'all', label: 'All Status' },
+                  { id: 'available', label: 'Available' },
+                  { id: 'reserved', label: 'Reserved' },
+                  { id: 'sold', label: 'Sold Out' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setPropStatusFilter(tab.id)}
+                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      propStatusFilter === tab.id
+                        ? 'bg-slate-800 text-amber-400 border border-slate-700'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1229,12 +1262,13 @@ export default function Home() {
               p.title.toLowerCase().includes(propSearchTerm.toLowerCase()) || 
               p.location.toLowerCase().includes(propSearchTerm.toLowerCase());
             const matchesStatus = propStatusFilter === 'all' || p.status === propStatusFilter;
-            return matchesSearch && matchesStatus;
+            const matchesCat = propCategoryFilter === 'all' || (p.property_type || 'house') === propCategoryFilter;
+            return matchesSearch && matchesStatus && matchesCat;
           }).length === 0 ? (
             <div className="text-center py-12 bg-slate-950/60 border border-slate-800 rounded-3xl">
               <HouseIcon className="h-12 w-12 text-slate-600 mx-auto mb-3" />
               <p className="text-slate-400 text-sm font-semibold">No property listings found matching your search.</p>
-              <p className="text-slate-500 text-xs mt-1">Try clearing your search query or selecting a different status filter.</p>
+              <p className="text-slate-500 text-xs mt-1">Try clearing your search query or selecting a different category/status filter.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -1243,89 +1277,102 @@ export default function Home() {
                   p.title.toLowerCase().includes(propSearchTerm.toLowerCase()) || 
                   p.location.toLowerCase().includes(propSearchTerm.toLowerCase());
                 const matchesStatus = propStatusFilter === 'all' || p.status === propStatusFilter;
-                return matchesSearch && matchesStatus;
-              }).map((prop) => (
-                <div 
-                  key={prop.id}
-                  className="bg-slate-950/80 border border-slate-800 rounded-3xl overflow-hidden hover:border-amber-500/40 transition-all duration-300 shadow-xl flex flex-col justify-between group"
-                >
-                  {/* Image & Status Badge */}
-                  <div className="relative h-64 overflow-hidden bg-slate-900">
-                    <img 
-                      src={prop.image_url} 
-                      alt={prop.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute top-4 left-4 flex gap-2">
-                      <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-lg ${
-                        prop.status === 'sold'
-                          ? 'bg-red-500 text-white'
-                          : prop.status === 'reserved'
-                          ? 'bg-amber-500 text-slate-950 font-extrabold'
-                          : 'bg-emerald-500 text-slate-950 font-extrabold'
-                      }`}>
-                        {prop.status === 'sold' ? 'Sold Out' : prop.status === 'reserved' ? 'Reserved' : 'For Sale / Available'}
-                      </span>
+                const matchesCat = propCategoryFilter === 'all' || (p.property_type || 'house') === propCategoryFilter;
+                return matchesSearch && matchesStatus && matchesCat;
+              }).map((prop) => {
+                const isLand = prop.property_type === 'land';
+                let featureList = [];
+                try {
+                  if (prop.features) featureList = typeof prop.features === 'string' ? JSON.parse(prop.features) : prop.features;
+                } catch (e) {}
+
+                return (
+                  <div 
+                    key={prop.id}
+                    className="bg-slate-950/80 border border-slate-800 rounded-3xl overflow-hidden hover:border-amber-500/40 transition-all duration-300 shadow-xl flex flex-col justify-between group"
+                  >
+                    {/* Image & Status Badge */}
+                    <div className="relative h-64 overflow-hidden bg-slate-900">
+                      <img 
+                        src={getImageUrl(prop.image_url)} 
+                        alt={prop.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute top-4 left-4 flex gap-2 flex-wrap">
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full shadow-lg ${
+                          prop.status === 'sold'
+                            ? 'bg-red-500 text-white'
+                            : prop.status === 'reserved'
+                            ? 'bg-amber-500 text-slate-950 font-extrabold'
+                            : 'bg-emerald-500 text-slate-950 font-extrabold'
+                        }`}>
+                          {prop.status === 'sold' ? 'Sold Out' : prop.status === 'reserved' ? 'Reserved' : 'For Sale / Available'}
+                        </span>
+
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-md text-amber-400 border border-amber-500/30 shadow-lg">
+                          {isLand ? '🌿 Land / Plot' : '🏡 Residence'}
+                        </span>
+                      </div>
+
+                      <div className="absolute bottom-4 right-4 bg-slate-950/90 border border-slate-800 backdrop-blur-md px-3 py-1.5 rounded-xl">
+                        <span className="text-xs text-amber-500 font-extrabold block">
+                          LKR {Number(prop.price).toLocaleString()}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="absolute bottom-4 right-4 bg-slate-950/90 border border-slate-800 backdrop-blur-md px-3 py-1.5 rounded-xl">
-                      <span className="text-xs text-amber-500 font-extrabold block">
-                        LKR {Number(prop.price).toLocaleString()}
-                      </span>
+                    {/* Body Content */}
+                    <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-1.5 text-slate-400 text-xs">
+                          <MapPin className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          <span className="truncate">{prop.location}</span>
+                        </div>
+                        <h3 className="font-extrabold text-lg text-white leading-snug line-clamp-2">{prop.title}</h3>
+                        <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed font-normal">{prop.description}</p>
+                      </div>
+
+                      {/* Spec Pills */}
+                      <div className="grid grid-cols-3 gap-2 text-[11px] bg-slate-900/80 p-3 rounded-2xl border border-slate-800/80 text-slate-300">
+                        <div className="text-center">
+                          <span className="text-[10px] text-slate-500 block uppercase font-bold">Land</span>
+                          <span className="font-bold text-amber-400">{prop.perches} Perches</span>
+                        </div>
+                        <div className="text-center border-x border-slate-800">
+                          <span className="text-[10px] text-slate-500 block uppercase font-bold">{isLand ? 'Category' : 'Bedrooms'}</span>
+                          <span className="font-bold text-amber-400 truncate block px-1">{isLand ? (prop.land_type || 'Bare Land') : `${prop.bedrooms} Beds`}</span>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-[10px] text-slate-500 block uppercase font-bold">{isLand ? 'Deed / Title' : 'Bathrooms'}</span>
+                          <span className="font-bold text-amber-400 truncate block px-1">{isLand ? (featureList[0] || 'Clear Title') : `${prop.bathrooms} Baths`}</span>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-2 gap-3 pt-2">
+                        <button
+                          onClick={() => {
+                            setSelectedPropertyModal(prop);
+                            setActivePropertyPhotoIdx(0);
+                          }}
+                          className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all border border-slate-700 cursor-pointer text-center"
+                        >
+                          View Details
+                        </button>
+                        <a
+                          href={`https://wa.me/94769117398?text=${encodeURIComponent(`Hi Rohana Construction, I am interested in purchasing ${isLand ? 'land' : 'property'}: "${prop.title}" in ${prop.location} (${prop.perches} Perches, LKR ${Number(prop.price).toLocaleString()}). Please provide more details.`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer text-center flex items-center justify-center space-x-1"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          <span>Inquire Now</span>
+                        </a>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Body Content */}
-                  <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-1.5 text-slate-400 text-xs">
-                        <MapPin className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                        <span className="truncate">{prop.location}</span>
-                      </div>
-                      <h3 className="font-extrabold text-lg text-white leading-snug line-clamp-2">{prop.title}</h3>
-                      <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed font-normal">{prop.description}</p>
-                    </div>
-
-                    {/* Spec Pills */}
-                    <div className="grid grid-cols-3 gap-2 text-[11px] bg-slate-900/80 p-3 rounded-2xl border border-slate-800/80 text-slate-300">
-                      <div className="text-center">
-                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Land</span>
-                        <span className="font-bold text-amber-400">{prop.perches} Perches</span>
-                      </div>
-                      <div className="text-center border-x border-slate-800">
-                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Bedrooms</span>
-                        <span className="font-bold text-amber-400">{prop.bedrooms} Beds</span>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-[10px] text-slate-500 block uppercase font-bold">Bathrooms</span>
-                        <span className="font-bold text-amber-400">{prop.bathrooms} Baths</span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-3 pt-2">
-                      <button
-                        onClick={() => {
-                          setSelectedPropertyModal(prop);
-                          setActivePropertyPhotoIdx(0);
-                        }}
-                        className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all border border-slate-700 cursor-pointer text-center"
-                      >
-                        View Photos
-                      </button>
-                      <a
-                        href={`https://wa.me/94769117398?text=${encodeURIComponent(`Hi Rohana Construction, I am interested in purchasing the property: "${prop.title}" in ${prop.location} (Price: LKR ${Number(prop.price).toLocaleString()}). Please provide more details.`)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold py-2.5 rounded-xl text-xs transition-all shadow-md cursor-pointer text-center flex items-center justify-center space-x-1"
-                      >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        <span>Inquire Now</span>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -2364,7 +2411,7 @@ export default function Home() {
             <div className="w-full md:w-1/2 bg-slate-950 flex flex-col justify-between p-4 relative min-h-[300px] md:min-h-[450px]">
               <div className="flex-1 flex items-center justify-center overflow-hidden rounded-xl bg-slate-900 relative">
                 <img 
-                  src={selectedPropertyModal.gallery ? selectedPropertyModal.gallery[activePropertyPhotoIdx] || selectedPropertyModal.image_url : selectedPropertyModal.image_url} 
+                  src={getImageUrl(selectedPropertyModal.gallery ? selectedPropertyModal.gallery[activePropertyPhotoIdx] || selectedPropertyModal.image_url : selectedPropertyModal.image_url)} 
                   alt={selectedPropertyModal.title} 
                   className="max-h-[360px] w-full object-cover rounded-lg"
                 />
@@ -2398,7 +2445,7 @@ export default function Home() {
                         activePropertyPhotoIdx === idx ? 'border-amber-500 scale-105 ring-2 ring-amber-500/30' : 'border-slate-800 opacity-60 hover:opacity-100'
                       }`}
                     >
-                      <img src={url} alt="" className="w-full h-full object-cover" />
+                      <img src={getImageUrl(url)} alt="" className="w-full h-full object-cover" />
                     </button>
                   ))}
                 </div>
@@ -2430,25 +2477,70 @@ export default function Home() {
 
                 <p className="text-xs text-slate-600 leading-relaxed font-normal">{selectedPropertyModal.description}</p>
 
-                {/* Technical Specs Table */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
-                  <div className="flex justify-between border-b border-slate-200 pb-1.5">
-                    <span className="text-slate-500 font-medium">Land Extent:</span>
-                    <span className="font-bold text-slate-900">{selectedPropertyModal.perches} Perches</span>
+                {/* Technical Specs Table / Features */}
+                {selectedPropertyModal.property_type === 'land' ? (
+                  <div className="space-y-3">
+                    <div className="bg-amber-50 p-4 rounded-2xl border border-amber-200 space-y-2 text-xs">
+                      <div className="flex justify-between border-b border-amber-200/80 pb-1.5">
+                        <span className="text-slate-500 font-medium">Land Extent:</span>
+                        <span className="font-bold text-slate-900">{selectedPropertyModal.perches} Perches</span>
+                      </div>
+                      <div className="flex justify-between border-b border-amber-200/80 pb-1.5">
+                        <span className="text-slate-500 font-medium">Land Category:</span>
+                        <span className="font-bold text-amber-700">{selectedPropertyModal.land_type || 'Bare Land'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-medium">Deed & Title:</span>
+                        <span className="font-bold text-emerald-700">Clear Freehold Title / Bim Saviya</span>
+                      </div>
+                    </div>
+
+                    {/* Features checklist */}
+                    {(() => {
+                      let featuresList = [];
+                      try {
+                        if (selectedPropertyModal.features) {
+                          featuresList = typeof selectedPropertyModal.features === 'string' ? JSON.parse(selectedPropertyModal.features) : selectedPropertyModal.features;
+                        }
+                      } catch (e) {}
+
+                      if (featuresList.length === 0) featuresList = ['Electricity Connected', 'Pipe Water Available', 'Clear Bim Saviya Title', 'Wide Access Road'];
+
+                      return (
+                        <div className="space-y-1.5">
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">Infrastructure & Key Amenities</span>
+                          <div className="grid grid-cols-2 gap-1.5 text-xs">
+                            {featuresList.map((f, i) => (
+                              <div key={i} className="flex items-center space-x-1.5 bg-slate-50 p-2 rounded-xl border border-slate-100 text-slate-700 font-semibold">
+                                <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                <span className="truncate">{f}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                  <div className="flex justify-between border-b border-slate-200 pb-1.5">
-                    <span className="text-slate-500 font-medium">Bedrooms:</span>
-                    <span className="font-bold text-slate-900">{selectedPropertyModal.bedrooms} Bedrooms</span>
+                ) : (
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                      <span className="text-slate-500 font-medium">Land Extent:</span>
+                      <span className="font-bold text-slate-900">{selectedPropertyModal.perches} Perches</span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                      <span className="text-slate-500 font-medium">Bedrooms:</span>
+                      <span className="font-bold text-slate-900">{selectedPropertyModal.bedrooms} Bedrooms</span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                      <span className="text-slate-500 font-medium">Bathrooms:</span>
+                      <span className="font-bold text-slate-900">{selectedPropertyModal.bathrooms} Bathrooms</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-medium">Structure Stories:</span>
+                      <span className="font-bold text-slate-900">{selectedPropertyModal.stories}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between border-b border-slate-200 pb-1.5">
-                    <span className="text-slate-500 font-medium">Bathrooms:</span>
-                    <span className="font-bold text-slate-900">{selectedPropertyModal.bathrooms} Bathrooms</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-medium">Structure Stories:</span>
-                    <span className="font-bold text-slate-900">{selectedPropertyModal.stories}</span>
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
@@ -2460,7 +2552,7 @@ export default function Home() {
                   <span>Call Agent</span>
                 </a>
                 <a
-                  href={`https://wa.me/94769117398?text=${encodeURIComponent(`Hi Rohana Construction, I am interested in purchasing property "${selectedPropertyModal.title}" (Price: LKR ${Number(selectedPropertyModal.price).toLocaleString()}). Please arrange a site inspection.`)}`}
+                  href={`https://wa.me/94769117398?text=${encodeURIComponent(`Hi Rohana Construction, I am interested in purchasing ${selectedPropertyModal.property_type === 'land' ? 'land' : 'property'} "${selectedPropertyModal.title}" (${selectedPropertyModal.perches} Perches, Location: ${selectedPropertyModal.location}, Price: LKR ${Number(selectedPropertyModal.price).toLocaleString()}). Please arrange a site inspection.`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-3 px-4 rounded-xl text-xs transition-all shadow-md shadow-emerald-600/20 cursor-pointer"

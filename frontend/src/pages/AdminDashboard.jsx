@@ -10,6 +10,13 @@ import { Doughnut, Bar } from 'react-chartjs-2';
 import API_URL from '../config';
 import BackButton from '../components/BackButton';
 
+const getImageUrl = (url) => {
+  if (!url) return '/images/rohana-completed-house/house1.jpg';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/uploads')) return `${API_URL}${url}`;
+  return url;
+};
+
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
 export default function AdminDashboard() {
@@ -44,7 +51,10 @@ export default function AdminDashboard() {
     description: '',
     contactPhone: '076 911 73 98',
     status: 'available',
-    imageUrl: ''
+    imageUrl: '',
+    propertyType: 'house',
+    landType: 'Residential Plot',
+    features: ['Electricity Connected', 'Pipe Water Available', 'Clear Bim Saviya Title', 'Wide Carpeted Access Road']
   });
   const [propCoverFile, setPropCoverFile] = useState(null);
   const [propGalleryFiles, setPropGalleryFiles] = useState([]);
@@ -179,13 +189,16 @@ export default function AdminDashboard() {
       location: '',
       price: '',
       perches: '',
-      bedrooms: '3',
-      bathrooms: '2',
-      stories: 'Two Stories',
+      bedrooms: '0',
+      bathrooms: '0',
+      stories: 'N/A',
       description: '',
       contactPhone: '076 911 73 98',
       status: 'available',
-      imageUrl: ''
+      imageUrl: '',
+      propertyType: 'house',
+      landType: 'Residential Plot',
+      features: ['Electricity Connected', 'Pipe Water Available', 'Clear Bim Saviya Title', 'Wide Carpeted Access Road']
     });
     setPropCoverFile(null);
     setPropGalleryFiles([]);
@@ -195,18 +208,26 @@ export default function AdminDashboard() {
 
   const handleOpenEditProperty = (prop) => {
     setEditingProperty(prop);
+    let parsedFeatures = ['Electricity Connected', 'Pipe Water Available', 'Clear Bim Saviya Title'];
+    try {
+      if (prop.features) parsedFeatures = typeof prop.features === 'string' ? JSON.parse(prop.features) : prop.features;
+    } catch (e) {}
+
     setPropertyForm({
       title: prop.title || '',
       location: prop.location || '',
       price: prop.price || '',
       perches: prop.perches || '',
-      bedrooms: prop.bedrooms || '3',
-      bathrooms: prop.bathrooms || '2',
+      bedrooms: prop.bedrooms !== undefined ? String(prop.bedrooms) : '0',
+      bathrooms: prop.bathrooms !== undefined ? String(prop.bathrooms) : '0',
       stories: prop.stories || 'Two Stories',
       description: prop.description || '',
       contactPhone: prop.contact_phone || '076 911 73 98',
       status: prop.status || 'available',
-      imageUrl: prop.image_url || ''
+      imageUrl: prop.image_url || '',
+      propertyType: prop.property_type || 'house',
+      landType: prop.land_type || 'Residential Plot',
+      features: Array.isArray(parsedFeatures) ? parsedFeatures : []
     });
     setPropCoverFile(null);
     setPropGalleryFiles([]);
@@ -267,6 +288,9 @@ export default function AdminDashboard() {
       formData.append('contactPhone', propertyForm.contactPhone);
       formData.append('status', propertyForm.status);
       formData.append('imageUrl', propertyForm.imageUrl);
+      formData.append('propertyType', propertyForm.propertyType);
+      formData.append('landType', propertyForm.landType);
+      formData.append('features', JSON.stringify(propertyForm.features));
 
       if (propCoverFile) {
         formData.append('coverFile', propCoverFile);
@@ -298,7 +322,11 @@ export default function AdminDashboard() {
           setIsPropModalOpen(false);
         }, 1200);
       } else {
-        setPropMsg(data.message || 'Failed to save property.');
+        if (res.status === 401 || res.status === 403 || (data.message && data.message.toLowerCase().includes('token'))) {
+          setPropMsg('⚠️ Your login session has expired (Invalid or expired token). Please click "Re-Login Now" to log back in.');
+        } else {
+          setPropMsg(data.message || 'Failed to save property.');
+        }
       }
     } catch (err) {
       console.error(err);
@@ -1445,7 +1473,7 @@ export default function AdminDashboard() {
                   <div key={prop.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col justify-between space-y-4 p-5 relative">
                     <div className="space-y-3">
                       <div className="relative h-48 rounded-2xl overflow-hidden bg-slate-900">
-                        <img src={prop.image_url} alt={prop.title} className="w-full h-full object-cover" />
+                        <img src={getImageUrl(prop.image_url)} alt={prop.title} className="w-full h-full object-cover" />
                         <div className="absolute top-3 left-3 flex gap-2">
                           <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md ${
                             prop.status === 'sold' ? 'bg-red-500 text-white' : prop.status === 'reserved' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-500 text-slate-950'
@@ -1465,9 +1493,12 @@ export default function AdminDashboard() {
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 text-[10px] bg-slate-50 p-2.5 rounded-xl border border-slate-100 font-semibold text-slate-700">
-                        <div><span className="text-slate-400 block font-normal">Land:</span> {prop.perches} Perches</div>
-                        <div><span className="text-slate-400 block font-normal">Beds:</span> {prop.bedrooms} Bedrooms</div>
-                        <div><span className="text-slate-400 block font-normal">Baths:</span> {prop.bathrooms} Baths</div>
+                        <div><span className="text-slate-400 block font-normal">Category:</span> {prop.property_type === 'land' ? '🌿 Land' : '🏡 House'}</div>
+                        <div><span className="text-slate-400 block font-normal">Land Size:</span> {prop.perches} Perches</div>
+                        <div>
+                          <span className="text-slate-400 block font-normal">{prop.property_type === 'land' ? 'Type:' : 'Beds/Baths:'}</span> 
+                          {prop.property_type === 'land' ? (prop.land_type || 'Bare Land') : `${prop.bedrooms}B / ${prop.bathrooms}Ba`}
+                        </div>
                       </div>
                     </div>
 
@@ -1528,10 +1559,23 @@ export default function AdminDashboard() {
             </div>
 
             {propMsg && (
-              <div className={`p-3 rounded-xl text-xs font-bold ${
+              <div className={`p-3.5 rounded-2xl text-xs font-bold flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
                 propMsg.includes('successfully') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
-                {propMsg}
+                <span className="leading-relaxed">{propMsg}</span>
+                {(propMsg.toLowerCase().includes('token') || propMsg.toLowerCase().includes('expired') || propMsg.toLowerCase().includes('session')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem('rcms_token');
+                      localStorage.removeItem('rcms_user');
+                      navigate('/login');
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs cursor-pointer shrink-0 shadow-sm transition-all"
+                  >
+                    🔑 Re-Login Now
+                  </button>
+                )}
               </div>
             )}
 
@@ -1548,6 +1592,37 @@ export default function AdminDashboard() {
                 />
               </div>
 
+              {/* Property Category / Type Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-2">Listing Category / Property Type *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'house', label: '🏡 House / Villa' },
+                    { id: 'land', label: '🌿 Land / Plot' },
+                    { id: 'commercial', label: '🏢 Commercial' }
+                  ].map(type => (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => setPropertyForm({ 
+                        ...propertyForm, 
+                        propertyType: type.id,
+                        bedrooms: type.id === 'land' ? '0' : (propertyForm.bedrooms === '0' ? '3' : propertyForm.bedrooms),
+                        bathrooms: type.id === 'land' ? '0' : (propertyForm.bathrooms === '0' ? '2' : propertyForm.bathrooms)
+                      })}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all border cursor-pointer text-center ${
+                        propertyForm.propertyType === type.id
+                          ? 'bg-amber-500 text-slate-950 border-amber-500 font-black shadow-md shadow-amber-500/20'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Basic Details */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Location *</label>
@@ -1573,51 +1648,131 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Land (Perches)</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={propertyForm.perches}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, perches: e.target.value })}
-                    placeholder="10.5"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                  />
+              {/* Specs & Status */}
+              {propertyForm.propertyType === 'land' ? (
+                <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-200/80 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Land Size (Perches) *</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        required
+                        value={propertyForm.perches}
+                        onChange={(e) => setPropertyForm({ ...propertyForm, perches: e.target.value })}
+                        placeholder="10.5"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Land Type / Category</label>
+                      <select
+                        value={propertyForm.landType}
+                        onChange={(e) => setPropertyForm({ ...propertyForm, landType: e.target.value })}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs text-slate-900 font-bold"
+                      >
+                        <option value="Bare Land">Bare Land</option>
+                        <option value="Residential Plot">Residential Plot</option>
+                        <option value="Commercial Land">Commercial Land</option>
+                        <option value="Agricultural Land">Agricultural Land</option>
+                        <option value="Estate / Plantation">Estate / Plantation</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Availability Status</label>
+                      <select
+                        value={propertyForm.status}
+                        onChange={(e) => setPropertyForm({ ...propertyForm, status: e.target.value })}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-2 py-2 text-xs text-slate-900 font-bold"
+                      >
+                        <option value="available">Available / For Sale</option>
+                        <option value="reserved">Reserved</option>
+                        <option value="sold">Sold Out</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Land Features & Infrastructure Checkboxes */}
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-extrabold text-amber-900 uppercase tracking-wider">Infrastructure & Title Amenities</label>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {[
+                        'Electricity Connected',
+                        'Pipe Water Available',
+                        'Clear Bim Saviya Title',
+                        'Wide Carpeted Access Road',
+                        'Approved Survey Plan',
+                        'Proximity to Town / Highway'
+                      ].map(feat => {
+                        const isChecked = propertyForm.features.includes(feat);
+                        return (
+                          <label key={feat} className="flex items-center space-x-2 bg-white p-2 rounded-xl border border-slate-200 cursor-pointer text-slate-800 font-medium">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setPropertyForm({ ...propertyForm, features: [...propertyForm.features, feat] });
+                                } else {
+                                  setPropertyForm({ ...propertyForm, features: propertyForm.features.filter(f => f !== feat) });
+                                }
+                              }}
+                              className="accent-amber-500 rounded h-4 w-4"
+                            />
+                            <span>{feat}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Bedrooms</label>
-                  <input
-                    type="number"
-                    value={propertyForm.bedrooms}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, bedrooms: e.target.value })}
-                    placeholder="4"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                  />
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Land (Perches)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={propertyForm.perches}
+                      onChange={(e) => setPropertyForm({ ...propertyForm, perches: e.target.value })}
+                      placeholder="10.5"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Bedrooms</label>
+                    <input
+                      type="number"
+                      value={propertyForm.bedrooms}
+                      onChange={(e) => setPropertyForm({ ...propertyForm, bedrooms: e.target.value })}
+                      placeholder="4"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Bathrooms</label>
+                    <input
+                      type="number"
+                      value={propertyForm.bathrooms}
+                      onChange={(e) => setPropertyForm({ ...propertyForm, bathrooms: e.target.value })}
+                      placeholder="3"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Status</label>
+                    <select
+                      value={propertyForm.status}
+                      onChange={(e) => setPropertyForm({ ...propertyForm, status: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs text-slate-900 font-bold"
+                    >
+                      <option value="available">Available / For Sale</option>
+                      <option value="reserved">Reserved</option>
+                      <option value="sold">Sold Out</option>
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Bathrooms</label>
-                  <input
-                    type="number"
-                    value={propertyForm.bathrooms}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, bathrooms: e.target.value })}
-                    placeholder="3"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Status</label>
-                  <select
-                    value={propertyForm.status}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, status: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs text-slate-900 font-bold"
-                  >
-                    <option value="available">Available / For Sale</option>
-                    <option value="reserved">Reserved</option>
-                    <option value="sold">Sold Out</option>
-                  </select>
-                </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Description *</label>

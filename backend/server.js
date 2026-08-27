@@ -1046,7 +1046,7 @@ app.post('/api/admin/properties-for-sale', authenticateToken, upload.fields([
 ]), async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ message: 'Unauthorized' });
 
-  const { title, location, price, perches, bedrooms, bathrooms, stories, description, imageUrl, contactPhone, status } = req.body;
+  const { title, location, price, perches, bedrooms, bathrooms, stories, description, imageUrl, contactPhone, status, propertyType, landType, features } = req.body;
 
   if (!title || !location || !price) {
     return res.status(400).json({ message: 'Title, location, and price are required' });
@@ -1066,21 +1066,24 @@ app.post('/api/admin/properties-for-sale', authenticateToken, upload.fields([
 
   try {
     const result = await dbRun(
-      `INSERT INTO houses_for_sale (title, location, price, perches, bedrooms, bathrooms, stories, description, image_url, gallery, contact_phone, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO houses_for_sale (title, location, price, perches, bedrooms, bathrooms, stories, description, image_url, gallery, contact_phone, status, property_type, land_type, features)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         title,
         location,
         parseFloat(price) || 0,
         parseFloat(perches) || 10,
-        parseInt(bedrooms) || 3,
-        parseInt(bathrooms) || 2,
-        stories || 'Two Stories',
+        parseInt(bedrooms) || 0,
+        parseInt(bathrooms) || 0,
+        stories || 'N/A',
         description || '',
         coverPath,
         JSON.stringify(galleryArr),
         contactPhone || '076 911 73 98',
-        status || 'available'
+        status || 'available',
+        propertyType || 'house',
+        landType || 'Residential Plot',
+        features ? (typeof features === 'string' ? features : JSON.stringify(features)) : '[]'
       ]
     );
 
@@ -1091,7 +1094,7 @@ app.post('/api/admin/properties-for-sale', authenticateToken, upload.fields([
   }
 });
 
-// Admin: Update house for sale / toggle status
+// Admin: Update house/land for sale / toggle status
 app.put('/api/admin/properties-for-sale/:id', authenticateToken, upload.fields([
   { name: 'coverFile', maxCount: 1 },
   { name: 'galleryFiles', maxCount: 10 }
@@ -1103,7 +1106,7 @@ app.put('/api/admin/properties-for-sale/:id', authenticateToken, upload.fields([
     const existing = await dbGet("SELECT * FROM houses_for_sale WHERE id = ?", [propId]);
     if (!existing) return res.status(404).json({ message: 'Property not found' });
 
-    const { title, location, price, perches, bedrooms, bathrooms, stories, description, imageUrl, contactPhone, status } = req.body;
+    const { title, location, price, perches, bedrooms, bathrooms, stories, description, imageUrl, contactPhone, status, propertyType, landType, features } = req.body;
 
     let coverPath = existing.image_url;
     if (req.files && req.files.coverFile && req.files.coverFile[0]) {
@@ -1124,7 +1127,7 @@ app.put('/api/admin/properties-for-sale/:id', authenticateToken, upload.fields([
 
     await dbRun(
       `UPDATE houses_for_sale 
-       SET title = ?, location = ?, price = ?, perches = ?, bedrooms = ?, bathrooms = ?, stories = ?, description = ?, image_url = ?, gallery = ?, contact_phone = ?, status = ?
+       SET title = ?, location = ?, price = ?, perches = ?, bedrooms = ?, bathrooms = ?, stories = ?, description = ?, image_url = ?, gallery = ?, contact_phone = ?, status = ?, property_type = ?, land_type = ?, features = ?
        WHERE id = ?`,
       [
         title !== undefined ? title : existing.title,
@@ -1139,6 +1142,9 @@ app.put('/api/admin/properties-for-sale/:id', authenticateToken, upload.fields([
         JSON.stringify(galleryArr),
         contactPhone !== undefined ? contactPhone : existing.contact_phone,
         status !== undefined ? status : existing.status,
+        propertyType !== undefined ? propertyType : (existing.property_type || 'house'),
+        landType !== undefined ? landType : (existing.land_type || 'Residential Plot'),
+        features !== undefined ? (typeof features === 'string' ? features : JSON.stringify(features)) : existing.features,
         propId
       ]
     );

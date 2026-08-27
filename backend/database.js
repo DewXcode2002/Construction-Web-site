@@ -207,23 +207,31 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 12. Houses For Sale (Properties Marketplace) Table
+    // 12. Houses & Properties For Sale Marketplace Table
     db.run(`CREATE TABLE IF NOT EXISTS houses_for_sale (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       location TEXT NOT NULL,
       price REAL NOT NULL,
       perches REAL NOT NULL,
-      bedrooms INTEGER NOT NULL,
-      bathrooms INTEGER NOT NULL,
+      bedrooms INTEGER NOT NULL DEFAULT 0,
+      bathrooms INTEGER NOT NULL DEFAULT 0,
       stories TEXT NOT NULL DEFAULT 'Two Stories',
       description TEXT NOT NULL,
       image_url TEXT NOT NULL,
       gallery TEXT, -- JSON string array of gallery photos
       contact_phone TEXT NOT NULL DEFAULT '0769117398',
       status TEXT NOT NULL DEFAULT 'available' CHECK(status IN ('available', 'reserved', 'sold')),
+      property_type TEXT DEFAULT 'house', -- 'house', 'land', 'commercial'
+      land_type TEXT DEFAULT 'Residential Plot', -- 'Bare Land', 'Residential Plot', 'Commercial Land', 'Agricultural Land', 'Estate'
+      features TEXT, -- JSON array of features (e.g. Electricity, Water, Bim Saviya Title)
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // Migrations for existing databases
+    db.run(`ALTER TABLE houses_for_sale ADD COLUMN property_type TEXT DEFAULT 'house'`, () => {});
+    db.run(`ALTER TABLE houses_for_sale ADD COLUMN land_type TEXT DEFAULT 'Residential Plot'`, () => {});
+    db.run(`ALTER TABLE houses_for_sale ADD COLUMN features TEXT`, () => {});
 
     // Seed default data
     seedDefaultData();
