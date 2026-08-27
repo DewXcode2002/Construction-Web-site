@@ -137,7 +137,11 @@ export default function Auth() {
         setEmail('');
       }
     } catch (err) {
-      setError(err.message);
+      if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+        setError('⚠️ Cannot connect to backend server. Please make sure your backend API server is online and VITE_API_URL is set in Vercel settings.');
+      } else {
+        setError(err.message);
+      }
     }
   };
 
