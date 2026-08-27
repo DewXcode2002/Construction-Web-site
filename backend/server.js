@@ -1163,16 +1163,6 @@ app.put('/api/admin/properties-for-sale/:id', authenticateToken, upload.fields([
         propId
       ]
     );
-        coverPath,
-        JSON.stringify(galleryArr),
-        contactPhone !== undefined ? contactPhone : existing.contact_phone,
-        status !== undefined ? status : existing.status,
-        propertyType !== undefined ? propertyType : (existing.property_type || 'house'),
-        landType !== undefined ? landType : (existing.land_type || 'Residential Plot'),
-        features !== undefined ? (typeof features === 'string' ? features : JSON.stringify(features)) : existing.features,
-        propId
-      ]
-    );
 
     res.json({ message: 'Property listing updated successfully!' });
   } catch (error) {
