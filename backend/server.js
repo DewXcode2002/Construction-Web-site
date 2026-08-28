@@ -1364,7 +1364,7 @@ app.delete('/api/admin/inquiries/:id', authenticateToken, async (req, res) => {
   }
 });
 
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
